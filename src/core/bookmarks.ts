@@ -1,6 +1,13 @@
-import type { BookmarkInfo } from "@/shared/types";
+import type {
+  BookmarkInfo,
+  BookmarkSnapshot,
+  FolderInfo,
+  BookmarkDuplicateGroup,
+} from "@/shared/types";
 
-export async function getBookmarkTree(): Promise<chrome.bookmarks.BookmarkTreeNode[]> {
+export async function getBookmarkTree(): Promise<
+  chrome.bookmarks.BookmarkTreeNode[]
+> {
   return chrome.bookmarks.getTree();
 }
 
@@ -45,6 +52,58 @@ export function flattenBookmarks(
   return result;
 }
 
+export function extractFolders(
+  nodes: chrome.bookmarks.BookmarkTreeNode[],
+  parentPath: string = "",
+): FolderInfo[] {
+  const folders: FolderInfo[] = [];
+  function walk(
+    node: chrome.bookmarks.BookmarkTreeNode,
+    currentPath: string,
+  ) {
+    if (!node.url && node.children) {
+      const path = currentPath
+        ? `${currentPath}/${node.title}`
+        : node.title || "Root";
+      if (node.id !== "0") {
+        folders.push({
+          id: node.id,
+          title: node.title,
+          path,
+          parentId: node.parentId,
+        });
+      }
+      for (const child of node.children) {
+        walk(child, node.id === "0" ? "" : path);
+      }
+    }
+  }
+  for (const node of nodes) walk(node, parentPath);
+  return folders;
+}
+
+export function buildFolderPathMap(
+  nodes: chrome.bookmarks.BookmarkTreeNode[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  function walk(
+    node: chrome.bookmarks.BookmarkTreeNode,
+    path: string,
+  ) {
+    const currentPath = path ? `${path}/${node.title}` : node.title || "";
+    if (!node.url) {
+      map.set(node.id, currentPath || "Root");
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        walk(child, node.id === "0" ? "" : currentPath);
+      }
+    }
+  }
+  for (const node of nodes) walk(node, "");
+  return map;
+}
+
 export function findDuplicateBookmarks(
   bookmarks: BookmarkInfo[],
 ): string[][] {
@@ -59,4 +118,34 @@ export function findDuplicateBookmarks(
     }
   }
   return Array.from(urlMap.values()).filter((ids) => ids.length > 1);
+}
+
+export function findDuplicateBookmarksDetailed(
+  bookmarks: BookmarkInfo[],
+): BookmarkDuplicateGroup[] {
+  const urlMap = new Map<string, BookmarkInfo[]>();
+  for (const bm of bookmarks) {
+    if (!bm.url) continue;
+    const existing = urlMap.get(bm.url);
+    if (existing) {
+      existing.push(bm);
+    } else {
+      urlMap.set(bm.url, [bm]);
+    }
+  }
+  return Array.from(urlMap.entries())
+    .filter(([, bms]) => bms.length > 1)
+    .map(([url, bms]) => ({ url, bookmarks: bms }));
+}
+
+export function snapshotBookmarks(
+  bookmarks: BookmarkInfo[],
+): BookmarkSnapshot[] {
+  return bookmarks
+    .filter((b) => b.parentId !== undefined && b.index !== undefined)
+    .map((b) => ({
+      id: b.id,
+      parentId: b.parentId!,
+      index: b.index!,
+    }));
 }

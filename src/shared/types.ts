@@ -92,3 +92,21 @@ export interface LocationSuggestion {
   confidence: number;
   reason: string;
 }
+
+export interface BookmarkSnapshot {
+  id: string;
+  parentId: string;
+  index: number;
+}
+
+export interface FolderInfo {
+  id: string;
+  title: string;
+  path: string;
+  parentId?: string;
+}
+
+export interface BookmarkDuplicateGroup {
+  url: string;
+  bookmarks: BookmarkInfo[];
+}

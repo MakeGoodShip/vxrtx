@@ -4,6 +4,12 @@ import type {
   TabInfo,
   TabOrganizationResult,
   TabSnapshot,
+  BookmarkInfo,
+  BookmarkSnapshot,
+  BookmarkOrganizationResult,
+  BookmarkDuplicateGroup,
+  LocationSuggestion,
+  FolderInfo,
 } from "@/shared/types";
 import {
   getSettings,
@@ -22,6 +28,17 @@ import {
   groupByDomain,
   domainToTabGroups,
 } from "@/core/tabs";
+import {
+  getBookmarkTree,
+  flattenBookmarks,
+  extractFolders,
+  buildFolderPathMap,
+  findDuplicateBookmarksDetailed,
+  snapshotBookmarks,
+  moveBookmark,
+  createFolder,
+  removeBookmark,
+} from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
 
@@ -64,10 +81,31 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
     case "undo-tab-changes":
       return await handleUndoTabChanges();
 
+    case "organize-bookmarks":
+      return await handleOrganizeBookmarks();
+
+    case "find-duplicate-bookmarks":
+      return await handleFindDuplicateBookmarks();
+
+    case "suggest-bookmark-location":
+      return await handleSuggestBookmarkLocation(
+        message.payload as { bookmark: BookmarkInfo },
+      );
+
+    case "apply-bookmark-suggestions":
+      return await handleApplyBookmarkSuggestions(
+        message.payload as BookmarkApplyPayload,
+      );
+
+    case "undo-bookmark-changes":
+      return await handleUndoBookmarkChanges();
+
     default:
       return { success: false, error: `Unknown action: ${message.action}` };
   }
 }
+
+// ─── Tab Organization ───────────────────────────────────────────────
 
 async function handleOrganizeTabs(): Promise<
   MessageResponse<TabOrganizationResult>
@@ -75,7 +113,6 @@ async function handleOrganizeTabs(): Promise<
   const settings = await getSettings();
   const tabs = await queryAllTabs();
 
-  // Snapshot current state for undo
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
     groupId: t.groupId,
@@ -83,11 +120,9 @@ async function handleOrganizeTabs(): Promise<
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Try AI-powered grouping, fall back to rule-based
   let result: TabOrganizationResult;
 
   if (settings.aiTier === "secure") {
-    // Secure tier: use rule-based for now (Phase 5 adds local AI)
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
   } else {
     try {
@@ -101,8 +136,7 @@ async function handleOrganizeTabs(): Promise<
         reasoning: aiResult.reasoning,
       };
     } catch (err) {
-      // Fall back to rule-based on AI failure
-      console.warn("AI tab organization failed, falling back to rule-based:", err);
+      console.warn("AI tab organization failed:", err);
       result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
       result.reasoning = `AI unavailable (${err instanceof Error ? err.message : String(err)}). ${result.reasoning}`;
     }
@@ -120,7 +154,6 @@ async function handleApplyTabSuggestions(
     return { success: false, error: "No window found" };
   }
 
-  // Re-snapshot right before applying so undo is accurate
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
     groupId: t.groupId,
@@ -128,7 +161,6 @@ async function handleApplyTabSuggestions(
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Apply groups
   for (const group of result.groups) {
     const validTabIds = group.tabIds.filter((id) =>
       tabs.some((t) => t.id === id),
@@ -137,7 +169,6 @@ async function handleApplyTabSuggestions(
     await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
   }
 
-  // Close stale tabs
   if (result.stale.length > 0) {
     const validStale = result.stale.filter((id) =>
       tabs.some((t) => t.id === id),
@@ -145,7 +176,6 @@ async function handleApplyTabSuggestions(
     if (validStale.length > 0) await closeTabs(validStale);
   }
 
-  // Close duplicate tabs (keep first in each set)
   for (const dupSet of result.duplicates) {
     if (dupSet.length > 1) {
       const validDups = dupSet
@@ -168,7 +198,6 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
 
   const currentTabs = await queryAllTabs();
 
-  // Ungroup all currently grouped tabs first
   const groupedTabIds = currentTabs
     .filter((t) => t.groupId !== -1)
     .map((t) => t.id);
@@ -176,7 +205,6 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
     await ungroupTabs(groupedTabIds);
   }
 
-  // Re-group tabs that were grouped in the snapshot
   const groupMap = new Map<number, number[]>();
   for (const entry of snapshot) {
     if (entry.groupId !== -1) {
@@ -189,7 +217,6 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
     }
   }
 
-  // Recreate groups (we can't restore exact group IDs, but we can regroup)
   const windowId = currentTabs[0]?.windowId;
   if (windowId !== undefined) {
     for (const tabIds of groupMap.values()) {
@@ -225,4 +252,205 @@ function ruleBasedOrganize(
     duplicates,
     reasoning: "Grouped by domain (rule-based)",
   };
+}
+
+// ─── Bookmark Organization ──────────────────────────────────────────
+
+interface BookmarkOrganizeResponse {
+  bookmarks: BookmarkInfo[];
+  folders: FolderInfo[];
+  result: BookmarkOrganizationResult;
+}
+
+interface BookmarkDuplicateResponse {
+  duplicates: BookmarkDuplicateGroup[];
+  folderPaths: Record<string, string>;
+}
+
+interface BookmarkLocationResponse {
+  suggestions: LocationSuggestion[];
+}
+
+interface BookmarkApplyPayload {
+  moves: { bookmarkId: string; targetFolderId: string }[];
+  newFolders: { name: string; parentId: string }[];
+  removals: string[];
+}
+
+async function handleOrganizeBookmarks(): Promise<
+  MessageResponse<BookmarkOrganizeResponse>
+> {
+  const settings = await getSettings();
+  const tree = await getBookmarkTree();
+  const bookmarks = flattenBookmarks(tree);
+  const folders = extractFolders(tree);
+
+  // Snapshot for undo
+  await setSessionData(
+    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
+    snapshotBookmarks(bookmarks),
+  );
+
+  if (settings.aiTier === "secure") {
+    // Rule-based: no restructuring, just return current state
+    return {
+      success: true,
+      data: {
+        bookmarks,
+        folders,
+        result: {
+          folders: [],
+          moves: [],
+          duplicates: [],
+          newFolders: [],
+          reasoning:
+            "Local AI not yet available. Showing current bookmarks. Switch to Relaxed/YOLO tier for AI-powered organization.",
+        },
+      },
+    };
+  }
+
+  try {
+    const provider = await getAIProvider();
+    const aiResult = await provider.organizeBookmarks(bookmarks);
+    return {
+      success: true,
+      data: { bookmarks, folders, result: aiResult },
+    };
+  } catch (err) {
+    console.warn("AI bookmark organization failed:", err);
+    return {
+      success: true,
+      data: {
+        bookmarks,
+        folders,
+        result: {
+          folders: [],
+          moves: [],
+          duplicates: [],
+          newFolders: [],
+          reasoning: `AI unavailable (${err instanceof Error ? err.message : String(err)}). Showing current bookmarks.`,
+        },
+      },
+    };
+  }
+}
+
+async function handleFindDuplicateBookmarks(): Promise<
+  MessageResponse<BookmarkDuplicateResponse>
+> {
+  const tree = await getBookmarkTree();
+  const bookmarks = flattenBookmarks(tree);
+  const folderPathMap = buildFolderPathMap(tree);
+  const duplicates = findDuplicateBookmarksDetailed(bookmarks);
+
+  const folderPaths: Record<string, string> = {};
+  for (const [id, path] of folderPathMap) {
+    folderPaths[id] = path;
+  }
+
+  // Snapshot for undo
+  await setSessionData(
+    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
+    snapshotBookmarks(bookmarks),
+  );
+
+  return { success: true, data: { duplicates, folderPaths } };
+}
+
+async function handleSuggestBookmarkLocation(
+  payload: { bookmark: BookmarkInfo },
+): Promise<MessageResponse<BookmarkLocationResponse>> {
+  const settings = await getSettings();
+
+  if (settings.aiTier === "secure") {
+    return {
+      success: false,
+      error:
+        "Local AI not yet available for bookmark suggestions. Switch to Relaxed/YOLO tier.",
+    };
+  }
+
+  const tree = await getBookmarkTree();
+  const folders = extractFolders(tree);
+  const folderInput = folders.map((f) => ({ id: f.id, path: f.path }));
+
+  try {
+    const provider = await getAIProvider();
+    const suggestions = await provider.suggestBookmarkLocation(
+      payload.bookmark,
+      folderInput,
+    );
+    return { success: true, data: { suggestions } };
+  } catch (err) {
+    return {
+      success: false,
+      error: `AI suggestion failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+async function handleApplyBookmarkSuggestions(
+  payload: BookmarkApplyPayload,
+): Promise<MessageResponse> {
+  // Re-snapshot before applying
+  const tree = await getBookmarkTree();
+  const bookmarks = flattenBookmarks(tree);
+  await setSessionData(
+    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
+    snapshotBookmarks(bookmarks),
+  );
+
+  // Create new folders first and build a map of placeholder → real ID
+  const folderIdMap = new Map<string, string>();
+  for (const folder of payload.newFolders) {
+    const created = await createFolder(folder.name, folder.parentId);
+    folderIdMap.set(`${folder.name}:${folder.parentId}`, created.id);
+  }
+
+  // Apply moves
+  for (const move of payload.moves) {
+    const resolvedFolderId =
+      folderIdMap.get(move.targetFolderId) ?? move.targetFolderId;
+    try {
+      await moveBookmark(move.bookmarkId, { parentId: resolvedFolderId });
+    } catch (err) {
+      console.warn(`Failed to move bookmark ${move.bookmarkId}:`, err);
+    }
+  }
+
+  // Remove duplicates
+  for (const id of payload.removals) {
+    try {
+      await removeBookmark(id);
+    } catch (err) {
+      console.warn(`Failed to remove bookmark ${id}:`, err);
+    }
+  }
+
+  return { success: true };
+}
+
+async function handleUndoBookmarkChanges(): Promise<MessageResponse> {
+  const snapshot = await getSessionData<BookmarkSnapshot[]>(
+    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
+  );
+  if (!snapshot || snapshot.length === 0) {
+    return { success: false, error: "No undo snapshot available" };
+  }
+
+  // Restore each bookmark to its original position
+  for (const entry of snapshot) {
+    try {
+      await moveBookmark(entry.id, {
+        parentId: entry.parentId,
+        index: entry.index,
+      });
+    } catch {
+      // Bookmark may have been deleted, skip
+    }
+  }
+
+  await clearSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT);
+  return { success: true };
 }

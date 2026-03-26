@@ -2,6 +2,8 @@ export type AITier = "secure" | "relaxed" | "yolo";
 
 export type AIModelProvider = "claude" | "openai" | "openrouter";
 
+export type LocalAIBackend = "chrome-ai" | "ollama";
+
 export interface Settings {
   aiTier: AITier;
   aiModelProvider: AIModelProvider;
@@ -9,6 +11,8 @@ export interface Settings {
   openaiApiKey: string;
   openrouterApiKey: string;
   openrouterModel: string;
+  localBackend: LocalAIBackend;
+  ollamaModel: string;
   staleDaysThreshold: number;
 }
 
@@ -19,6 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   openaiApiKey: "",
   openrouterApiKey: "",
   openrouterModel: "anthropic/claude-sonnet-4",
+  localBackend: "chrome-ai",
+  ollamaModel: "llama3.2",
   staleDaysThreshold: 7,
 };
 

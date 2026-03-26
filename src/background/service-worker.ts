@@ -1,4 +1,4 @@
-import type { Message, MessageResponse } from "@/shared/messaging";
+import type { Message, MessageResponse, ProgressUpdate } from "@/shared/messaging";
 import type {
   Settings,
   TabInfo,
@@ -42,13 +42,14 @@ import {
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
+import { checkLocalAIStatus, triggerChromeAIDownload } from "@/ai/providers/local";
 
 // Open side panel when extension icon is clicked
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch(console.error);
 
-// Message handler
+// Message handler for quick operations
 chrome.runtime.onMessage.addListener(
   (
     message: Message,
@@ -61,6 +62,63 @@ chrome.runtime.onMessage.addListener(
     return true;
   },
 );
+
+// Port handler for long-running operations with progress
+// The port keeps the service worker alive and enables progress updates
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "long-running") return;
+
+  port.onMessage.addListener(async (message: Message) => {
+    const sendProgress = (current: number, total: number, msg: string) => {
+      try {
+        port.postMessage({
+          type: "progress",
+          current,
+          total,
+          message: msg,
+        } satisfies ProgressUpdate);
+      } catch {
+        // Port may have disconnected
+      }
+    };
+
+    try {
+      const result = await handleMessageWithProgress(message, sendProgress);
+      try {
+        port.postMessage(result);
+      } catch {
+        // Port disconnected before we could send the result
+      }
+    } catch (err) {
+      try {
+        port.postMessage({ success: false, error: String(err) });
+      } catch {
+        // Port disconnected
+      }
+    }
+  });
+});
+
+type ProgressCallback = (current: number, total: number, message: string) => void;
+
+async function handleMessageWithProgress(
+  message: Message,
+  sendProgress: ProgressCallback,
+): Promise<MessageResponse> {
+  switch (message.action) {
+    case "organize-tabs":
+      return await handleOrganizeTabs(sendProgress);
+    case "organize-bookmarks":
+      return await handleOrganizeBookmarks(sendProgress);
+    case "suggest-bookmark-location":
+      return await handleSuggestBookmarkLocation(
+        message.payload as { bookmark: BookmarkInfo },
+      );
+    default:
+      // Fall back to non-progress handler
+      return await handleMessage(message);
+  }
+}
 
 async function handleMessage(message: Message): Promise<MessageResponse> {
   switch (message.action) {
@@ -104,6 +162,12 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
     case "cleanup-empty-folders":
       return await handleCleanupEmptyFolders();
 
+    case "check-local-ai":
+      return { success: true, data: await checkLocalAIStatus() };
+
+    case "download-chrome-ai":
+      return { success: true, data: await triggerChromeAIDownload() };
+
     default:
       return { success: false, error: `Unknown action: ${message.action}` };
   }
@@ -111,11 +175,13 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
 // ─── Tab Organization ───────────────────────────────────────────────
 
-async function handleOrganizeTabs(): Promise<
-  MessageResponse<TabOrganizationResult>
-> {
+async function handleOrganizeTabs(
+  sendProgress?: ProgressCallback,
+): Promise<MessageResponse<TabOrganizationResult>> {
   const settings = await getSettings();
   const tabs = await queryAllTabs();
+
+  sendProgress?.(0, 1, `Analyzing ${tabs.length} tabs...`);
 
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
@@ -126,24 +192,20 @@ async function handleOrganizeTabs(): Promise<
 
   let result: TabOrganizationResult;
 
-  if (settings.aiTier === "secure") {
+  try {
+    const provider = await getAIProvider();
+    const aiResult = await provider.organizeTabs(tabs, sendProgress);
+    result = {
+      tabs,
+      groups: aiResult.groups,
+      stale: aiResult.stale,
+      duplicates: aiResult.duplicates,
+      reasoning: aiResult.reasoning,
+    };
+  } catch (err) {
+    console.warn("AI tab organization failed, falling back to rule-based:", err);
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
-  } else {
-    try {
-      const provider = await getAIProvider();
-      const aiResult = await provider.organizeTabs(tabs);
-      result = {
-        tabs,
-        groups: aiResult.groups,
-        stale: aiResult.stale,
-        duplicates: aiResult.duplicates,
-        reasoning: aiResult.reasoning,
-      };
-    } catch (err) {
-      console.warn("AI tab organization failed:", err);
-      result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
-      result.reasoning = `AI unavailable (${err instanceof Error ? err.message : String(err)}). ${result.reasoning}`;
-    }
+    result.reasoning = `AI unavailable (${err instanceof Error ? err.message : String(err)}). ${result.reasoning}`;
   }
 
   return { success: true, data: result };
@@ -282,13 +344,14 @@ interface BookmarkApplyPayload {
   cleanupEmptyFolders?: boolean;
 }
 
-async function handleOrganizeBookmarks(): Promise<
-  MessageResponse<BookmarkOrganizeResponse>
-> {
-  const settings = await getSettings();
+async function handleOrganizeBookmarks(
+  sendProgress?: ProgressCallback,
+): Promise<MessageResponse<BookmarkOrganizeResponse>> {
   const tree = await getBookmarkTree();
   const bookmarks = flattenBookmarks(tree);
   const folders = extractFolders(tree);
+
+  sendProgress?.(0, 1, `Analyzing ${bookmarks.length} bookmarks...`);
 
   // Snapshot for undo
   await setSessionData(
@@ -296,28 +359,9 @@ async function handleOrganizeBookmarks(): Promise<
     snapshotBookmarks(bookmarks),
   );
 
-  if (settings.aiTier === "secure") {
-    // Rule-based: no restructuring, just return current state
-    return {
-      success: true,
-      data: {
-        bookmarks,
-        folders,
-        result: {
-          folders: [],
-          moves: [],
-          duplicates: [],
-          newFolders: [],
-          reasoning:
-            "Local AI not yet available. Showing current bookmarks. Switch to Relaxed/YOLO tier for AI-powered organization.",
-        },
-      },
-    };
-  }
-
   try {
     const provider = await getAIProvider();
-    const aiResult = await provider.organizeBookmarks(bookmarks);
+    const aiResult = await provider.organizeBookmarks(bookmarks, sendProgress);
     return {
       success: true,
       data: { bookmarks, folders, result: aiResult },
@@ -367,14 +411,6 @@ async function handleSuggestBookmarkLocation(
   payload: { bookmark: BookmarkInfo },
 ): Promise<MessageResponse<BookmarkLocationResponse>> {
   const settings = await getSettings();
-
-  if (settings.aiTier === "secure") {
-    return {
-      success: false,
-      error:
-        "Local AI not yet available for bookmark suggestions. Switch to Relaxed/YOLO tier.",
-    };
-  }
 
   const tree = await getBookmarkTree();
   const folders = extractFolders(tree);

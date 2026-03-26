@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { sendMessage } from "@/shared/messaging";
+import { useState, useEffect, useRef } from "react";
+import { sendMessage, sendLongRunningMessage, type ProgressUpdate } from "@/shared/messaging";
 import type {
   BookmarkInfo,
   BookmarkOrganizationResult,
@@ -89,19 +89,72 @@ interface OrganizeData {
   result: BookmarkOrganizationResult;
 }
 
+function useElapsedTimer(running: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(0);
+  useEffect(() => {
+    if (!running) { setElapsed(0); return; }
+    startRef.current = Date.now();
+    setElapsed(0);
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [running]);
+  return elapsed;
+}
+
+function formatElapsed(s: number): string {
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 function OrganizeMode({ onBack }: { onBack: () => void }) {
   const [status, setStatus] = useState<Status>("idle");
   const [data, setData] = useState<OrganizeData | null>(null);
   const [enabledFolders, setEnabledFolders] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
+  const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+  const elapsed = useElapsedTimer(status === "loading" || status === "applying");
+
+  // Persist preview state for tab switching
+  useEffect(() => {
+    if (status === "preview" && data) {
+      chrome.storage.session.set({
+        vxrtx_bm_preview: {
+          data,
+          enabledFolders: Array.from(enabledFolders),
+        },
+      });
+    } else if (status === "idle" || status === "done") {
+      chrome.storage.session.remove("vxrtx_bm_preview");
+    }
+  }, [status, data, enabledFolders]);
+
+  // Restore on mount
+  useEffect(() => {
+    chrome.storage.session.get("vxrtx_bm_preview").then((stored) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const saved = stored.vxrtx_bm_preview as any;
+      if (saved?.data && status === "idle") {
+        setData(saved.data as OrganizeData);
+        setEnabledFolders(new Set(saved.enabledFolders as number[]));
+        setStatus("preview");
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAnalyze() {
     setStatus("loading");
     setError(null);
+    setProgress(null);
     try {
-      const response = await sendMessage<void, OrganizeData>(
+      const response = await sendLongRunningMessage<void, OrganizeData>(
         "organize-bookmarks",
+        undefined,
+        setProgress,
       );
       if (response.success && response.data) {
         setData(response.data);
@@ -199,10 +252,36 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {status === "loading" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Analyzing bookmarks...
+      {(status === "loading" || status === "applying") && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <Spinner />
+            <span className="flex-1">
+              {status === "applying"
+                ? "Applying changes..."
+                : progress?.message ?? "Analyzing bookmarks..."}
+            </span>
+            {elapsed > 0 && (
+              <span className="shrink-0 text-xs text-zinc-600">
+                {formatElapsed(elapsed)}
+              </span>
+            )}
+          </div>
+          {progress && progress.total > 1 && (
+            <div className="space-y-1">
+              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.round((progress.current / progress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-zinc-600">
+                Batch {progress.current} of {progress.total}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -291,13 +370,6 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {status === "applying" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Applying changes...
-        </div>
-      )}
-
       {status === "done" && (
         <div className="space-y-3">
           <div className="rounded-lg border border-green-800 bg-green-950/50 p-3 text-sm text-green-300">
@@ -336,7 +408,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   async function loadBookmarks() {
-    const response = await sendMessage<void, { bookmarks: BookmarkInfo[]; folders: FolderInfo[]; result: BookmarkOrganizationResult }>(
+    const response = await sendLongRunningMessage<void, { bookmarks: BookmarkInfo[]; folders: FolderInfo[]; result: BookmarkOrganizationResult }>(
       "organize-bookmarks",
     );
     if (response.success && response.data) {
@@ -354,7 +426,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
     setStatus("loading");
     setError(null);
     try {
-      const response = await sendMessage<
+      const response = await sendLongRunningMessage<
         { bookmark: BookmarkInfo },
         { suggestions: LocationSuggestion[] }
       >("suggest-bookmark-location", { bookmark });

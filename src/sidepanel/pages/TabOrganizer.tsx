@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { sendMessage } from "@/shared/messaging";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { sendMessage, sendLongRunningMessage, type ProgressUpdate } from "@/shared/messaging";
 import type {
   TabOrganizationResult,
   TabGroupSuggestion,
@@ -34,18 +34,83 @@ const GROUP_COLORS: TabGroupColor[] = [
   "grey",
 ];
 
+function useElapsedTimer(running: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(0);
+
+  useEffect(() => {
+    if (!running) {
+      setElapsed(0);
+      return;
+    }
+    startRef.current = Date.now();
+    setElapsed(0);
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [running]);
+
+  return elapsed;
+}
+
+function formatElapsed(s: number): string {
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 export function TabOrganizer() {
   const [status, setStatus] = useState<Status>("idle");
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
+  const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+  const elapsed = useElapsedTimer(status === "loading" || status === "applying");
+
+  // Persist preview state so it survives side panel re-creation on tab switch
+  useEffect(() => {
+    if (status === "preview" && preview) {
+      const serializable = {
+        ...preview,
+        staleEnabled: Array.from(preview.staleEnabled),
+        duplicatesEnabled: Array.from(preview.duplicatesEnabled),
+        tabs: Array.from(preview.tabs.entries()),
+      };
+      chrome.storage.session.set({ vxrtx_tab_preview: serializable });
+    } else if (status === "idle" || status === "done") {
+      chrome.storage.session.remove("vxrtx_tab_preview");
+    }
+  }, [status, preview]);
+
+  // Restore preview on mount
+  useEffect(() => {
+    chrome.storage.session.get("vxrtx_tab_preview").then((data) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const saved = data.vxrtx_tab_preview as any;
+      if (saved?.groups && status === "idle") {
+        setPreview({
+          groups: saved.groups,
+          reasoning: saved.reasoning,
+          allDuplicates: saved.allDuplicates,
+          staleEnabled: new Set(saved.staleEnabled),
+          duplicatesEnabled: new Set(saved.duplicatesEnabled),
+          tabs: new Map(saved.tabs),
+        });
+        setStatus("preview");
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleOrganize() {
     setStatus("loading");
     setError(null);
+    setProgress(null);
     try {
-      const response = await sendMessage<void, TabOrganizationResult>(
+      const response = await sendLongRunningMessage<void, TabOrganizationResult>(
         "organize-tabs",
+        undefined,
+        setProgress,
       );
       if (response.success && response.data) {
         const data = response.data;
@@ -227,10 +292,36 @@ export function TabOrganizer() {
         </div>
       )}
 
-      {status === "loading" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Analyzing tabs...
+      {(status === "loading" || status === "applying") && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <Spinner />
+            <span className="flex-1">
+              {status === "applying"
+                ? "Applying changes..."
+                : progress?.message ?? "Analyzing tabs..."}
+            </span>
+            {elapsed > 0 && (
+              <span className="shrink-0 text-xs text-zinc-600">
+                {formatElapsed(elapsed)}
+              </span>
+            )}
+          </div>
+          {progress && progress.total > 1 && (
+            <div className="space-y-1">
+              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.round((progress.current / progress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-zinc-600">
+                Batch {progress.current} of {progress.total}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -361,12 +452,7 @@ export function TabOrganizer() {
         </div>
       )}
 
-      {status === "applying" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Applying changes...
-        </div>
-      )}
+      {/* applying state is now handled in the loading/applying block above */}
 
       {status === "done" && (
         <div className="space-y-3">

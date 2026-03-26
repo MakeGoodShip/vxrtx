@@ -1,76 +1,38 @@
-import type { AIProvider, TabOrganizationAIResult, AIRequestOptions } from "../types";
-import type {
-  TabInfo,
-  BookmarkInfo,
-  BookmarkOrganizationResult,
-  LocationSuggestion,
-  AIModelProvider,
-} from "@/shared/types";
-import {
-  buildTabGroupingPrompt,
-  tabsToYoloInput,
-} from "../prompts/tab-grouping";
-import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
-  bookmarksToYoloInput,
-} from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation } from "../parser";
+import type { AIModelProvider } from "@/shared/types";
+import { CloudProvider } from "./cloud-base";
 
-export class YoloProvider implements AIProvider {
+export class YoloProvider extends CloudProvider {
   constructor(
     private modelProvider: AIModelProvider,
     private claudeKey: string,
     private openaiKey: string,
-  ) {}
-
-  async organizeTabs(tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
-    const input = tabsToYoloInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: true });
-    const response = await this.complete(prompt);
-    return parseTabOrganization(response);
+  ) {
+    super(true);
   }
 
-  async organizeBookmarks(
-    bookmarks: BookmarkInfo[],
-  ): Promise<BookmarkOrganizationResult> {
-    const input = bookmarksToYoloInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: true });
-    const response = await this.complete(prompt);
-    const parsed = parseBookmarkOrganization(response);
-    return {
-      folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
-      moves: [],
-      duplicates: parsed.duplicates,
-      newFolders: [],
-      reasoning: parsed.reasoning,
-    };
-  }
-
-  async suggestBookmarkLocation(
-    bookmark: BookmarkInfo,
-    folders: { id: string; path: string }[],
-  ): Promise<LocationSuggestion[]> {
-    const input = { id: bookmark.id, title: bookmark.title, url: bookmark.url };
-    const prompt = buildBookmarkLocationPrompt(input, folders, {
-      includeUrls: true,
-    });
-    const response = await this.complete(prompt);
-    return parseBookmarkLocation(response).suggestions;
-  }
-
-  private async complete(prompt: string): Promise<string> {
+  protected async completeWithAbort(
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     if (this.modelProvider === "claude") {
-      return this.completeClaude(prompt);
+      return this.completeClaude(prompt, signal);
     }
-    return this.completeOpenAI(prompt);
+    return this.completeOpenAI(prompt, signal);
   }
 
-  private async completeClaude(prompt: string): Promise<string> {
+  protected async complete(prompt: string): Promise<string> {
+    return this.completeWithAbort(prompt, AbortSignal.timeout(90_000));
+  }
+
+  private async completeClaude(
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     if (!this.claudeKey) throw new Error("Anthropic API key not configured");
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal,
       headers: {
         "Content-Type": "application/json",
         "x-api-key": this.claudeKey,
@@ -97,29 +59,36 @@ export class YoloProvider implements AIProvider {
     return textBlock.text;
   }
 
-  private async completeOpenAI(prompt: string): Promise<string> {
+  private async completeOpenAI(
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     if (!this.openaiKey) throw new Error("OpenAI API key not configured");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.openaiKey}`,
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a browser organization assistant. Always respond with valid JSON only.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+        }),
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a browser organization assistant. Always respond with valid JSON only.",
-          },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      }),
-    });
+    );
 
     if (!response.ok) {
       const err = await response.text();

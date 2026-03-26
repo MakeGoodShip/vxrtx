@@ -1,91 +1,29 @@
-import type { AIProvider, TabOrganizationAIResult } from "../types";
-import type {
-  TabInfo,
-  BookmarkInfo,
-  BookmarkOrganizationResult,
-  LocationSuggestion,
-} from "@/shared/types";
-import {
-  buildTabGroupingPrompt,
-  tabsToYoloInput,
-  tabsToRelaxedInput,
-} from "../prompts/tab-grouping";
-import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
-  bookmarksToYoloInput,
-  bookmarksToRelaxedInput,
-} from "../prompts/bookmark-grouping";
-import {
-  parseTabOrganization,
-  parseBookmarkOrganization,
-  parseBookmarkLocation,
-} from "../parser";
+import { CloudProvider } from "./cloud-base";
 
 /**
  * OpenRouter provider — unified gateway to Claude, GPT, Llama, Mistral, etc.
  * Uses OpenAI-compatible chat completions API.
- * Users get one key at openrouter.ai that works with many models.
  */
-export class OpenRouterProvider implements AIProvider {
+export class OpenRouterProvider extends CloudProvider {
   constructor(
     private apiKey: string,
     private model: string,
-    private includeUrls: boolean,
-  ) {}
-
-  async organizeTabs(tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
-    const input = this.includeUrls
-      ? tabsToYoloInput(tabs)
-      : tabsToRelaxedInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, {
-      includeUrls: this.includeUrls,
-    });
-    const response = await this.complete(prompt);
-    return parseTabOrganization(response);
+    includeUrls: boolean,
+  ) {
+    super(includeUrls);
   }
 
-  async organizeBookmarks(
-    bookmarks: BookmarkInfo[],
-  ): Promise<BookmarkOrganizationResult> {
-    const input = this.includeUrls
-      ? bookmarksToYoloInput(bookmarks)
-      : bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, {
-      includeUrls: this.includeUrls,
-    });
-    const response = await this.complete(prompt);
-    const parsed = parseBookmarkOrganization(response);
-    return {
-      folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
-      moves: [],
-      duplicates: parsed.duplicates,
-      newFolders: [],
-      reasoning: parsed.reasoning,
-    };
-  }
-
-  async suggestBookmarkLocation(
-    bookmark: BookmarkInfo,
-    folders: { id: string; path: string }[],
-  ): Promise<LocationSuggestion[]> {
-    const input = this.includeUrls
-      ? { id: bookmark.id, title: bookmark.title, url: bookmark.url }
-      : { id: bookmark.id, title: bookmark.title };
-    const prompt = buildBookmarkLocationPrompt(input, folders, {
-      includeUrls: this.includeUrls,
-    });
-    const response = await this.complete(prompt);
-    return parseBookmarkLocation(response).suggestions;
-  }
-
-  private async complete(prompt: string): Promise<string> {
+  protected async completeWithAbort(
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     if (!this.apiKey) throw new Error("OpenRouter API key not configured");
 
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
+        signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
@@ -116,5 +54,9 @@ export class OpenRouterProvider implements AIProvider {
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("No content in OpenRouter response");
     return content;
+  }
+
+  protected async complete(prompt: string): Promise<string> {
+    return this.completeWithAbort(prompt, AbortSignal.timeout(90_000));
   }
 }

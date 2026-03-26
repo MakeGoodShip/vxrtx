@@ -1,20 +1,24 @@
 export type AITier = "secure" | "relaxed" | "yolo";
 
-export type AIModelProvider = "claude" | "openai";
+export type AIModelProvider = "claude" | "openai" | "openrouter";
 
 export interface Settings {
   aiTier: AITier;
   aiModelProvider: AIModelProvider;
   claudeApiKey: string;
   openaiApiKey: string;
+  openrouterApiKey: string;
+  openrouterModel: string;
   staleDaysThreshold: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   aiTier: "secure",
-  aiModelProvider: "claude",
+  aiModelProvider: "openrouter",
   claudeApiKey: "",
   openaiApiKey: "",
+  openrouterApiKey: "",
+  openrouterModel: "anthropic/claude-sonnet-4",
   staleDaysThreshold: 7,
 };
 

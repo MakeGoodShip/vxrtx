@@ -1,6 +1,7 @@
 import type { Message, MessageResponse } from "@/shared/messaging";
 import type {
   Settings,
+  TabInfo,
   TabOrganizationResult,
   TabSnapshot,
 } from "@/shared/types";
@@ -22,6 +23,7 @@ import {
   domainToTabGroups,
 } from "@/core/tabs";
 import { STORAGE_KEYS } from "@/shared/constants";
+import { getAIProvider } from "@/ai/provider";
 
 // Open side panel when extension icon is clicked
 chrome.sidePanel
@@ -81,19 +83,30 @@ async function handleOrganizeTabs(): Promise<
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Rule-based grouping (AI integration in Phase 3)
-  const domainMap = groupByDomain(tabs);
-  const groups = domainToTabGroups(domainMap);
-  const duplicates = findDuplicatesByUrl(tabs);
-  const stale = findStaleTabs(tabs, settings.staleDaysThreshold);
+  // Try AI-powered grouping, fall back to rule-based
+  let result: TabOrganizationResult;
 
-  const result: TabOrganizationResult = {
-    tabs,
-    groups,
-    stale,
-    duplicates,
-    reasoning: "Grouped by domain (rule-based)",
-  };
+  if (settings.aiTier === "secure") {
+    // Secure tier: use rule-based for now (Phase 5 adds local AI)
+    result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
+  } else {
+    try {
+      const provider = await getAIProvider();
+      const aiResult = await provider.organizeTabs(tabs);
+      result = {
+        tabs,
+        groups: aiResult.groups,
+        stale: aiResult.stale,
+        duplicates: aiResult.duplicates,
+        reasoning: aiResult.reasoning,
+      };
+    } catch (err) {
+      // Fall back to rule-based on AI failure
+      console.warn("AI tab organization failed, falling back to rule-based:", err);
+      result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
+      result.reasoning = `AI unavailable (${err instanceof Error ? err.message : String(err)}). ${result.reasoning}`;
+    }
+  }
 
   return { success: true, data: result };
 }
@@ -194,4 +207,22 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
 
   await clearSessionData(STORAGE_KEYS.TAB_SNAPSHOT);
   return { success: true };
+}
+
+function ruleBasedOrganize(
+  tabs: TabInfo[],
+  staleDays: number,
+): TabOrganizationResult {
+  const domainMap = groupByDomain(tabs);
+  const groups = domainToTabGroups(domainMap);
+  const duplicates = findDuplicatesByUrl(tabs);
+  const stale = findStaleTabs(tabs, staleDays);
+
+  return {
+    tabs,
+    groups,
+    stale,
+    duplicates,
+    reasoning: "Grouped by domain (rule-based)",
+  };
 }

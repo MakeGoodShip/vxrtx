@@ -38,6 +38,7 @@ import {
   moveBookmark,
   createFolder,
   removeBookmark,
+  removeEmptyFolders,
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
@@ -99,6 +100,9 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
     case "undo-bookmark-changes":
       return await handleUndoBookmarkChanges();
+
+    case "cleanup-empty-folders":
+      return await handleCleanupEmptyFolders();
 
     default:
       return { success: false, error: `Unknown action: ${message.action}` };
@@ -275,6 +279,7 @@ interface BookmarkApplyPayload {
   moves: { bookmarkId: string; targetFolderId: string }[];
   newFolders: { name: string; parentId: string }[];
   removals: string[];
+  cleanupEmptyFolders?: boolean;
 }
 
 async function handleOrganizeBookmarks(): Promise<
@@ -428,7 +433,21 @@ async function handleApplyBookmarkSuggestions(
     }
   }
 
+  // Clean up empty folders left behind by moves/removals
+  if (payload.cleanupEmptyFolders !== false) {
+    const removed = await removeEmptyFolders();
+    return { success: true, data: { emptyFoldersRemoved: removed } };
+  }
+
   return { success: true };
+}
+
+async function handleCleanupEmptyFolders(): Promise<MessageResponse> {
+  const removed = await removeEmptyFolders();
+  return {
+    success: true,
+    data: { removed },
+  };
 }
 
 async function handleUndoBookmarkChanges(): Promise<MessageResponse> {

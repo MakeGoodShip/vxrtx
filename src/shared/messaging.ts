@@ -7,6 +7,7 @@ export type MessageAction =
   | "find-duplicate-bookmarks"
   | "apply-bookmark-suggestions"
   | "undo-bookmark-changes"
+  | "cleanup-empty-folders"
   | "get-settings"
   | "save-settings";
 

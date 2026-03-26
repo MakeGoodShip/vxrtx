@@ -138,6 +138,63 @@ export function findDuplicateBookmarksDetailed(
     .map(([url, bms]) => ({ url, bookmarks: bms }));
 }
 
+// Chrome's built-in root folder IDs that must never be removed
+const PROTECTED_FOLDER_IDS = new Set(["0", "1", "2", "3"]);
+
+export async function findEmptyFolders(
+  nodes: chrome.bookmarks.BookmarkTreeNode[],
+): Promise<{ id: string; title: string; path: string }[]> {
+  const empties: { id: string; title: string; path: string }[] = [];
+
+  function walk(node: chrome.bookmarks.BookmarkTreeNode, path: string) {
+    if (node.url) return; // It's a bookmark, not a folder
+    if (!node.children) return;
+
+    const currentPath = path ? `${path}/${node.title}` : node.title || "Root";
+
+    // A folder is empty if it has no children at all
+    // or all its children are also empty folders (recursively)
+    const hasContent = node.children.some(
+      (child) => child.url || (child.children && child.children.length > 0),
+    );
+
+    if (
+      !hasContent &&
+      node.children.length === 0 &&
+      !PROTECTED_FOLDER_IDS.has(node.id)
+    ) {
+      empties.push({ id: node.id, title: node.title, path: currentPath });
+    }
+
+    for (const child of node.children) {
+      walk(child, node.id === "0" ? "" : currentPath);
+    }
+  }
+
+  for (const node of nodes) walk(node, "");
+  return empties;
+}
+
+export async function removeEmptyFolders(): Promise<number> {
+  let totalRemoved = 0;
+  // Run multiple passes since removing a folder may make its parent empty
+  for (let pass = 0; pass < 10; pass++) {
+    const tree = await getBookmarkTree();
+    const empties = await findEmptyFolders(tree);
+    if (empties.length === 0) break;
+
+    for (const folder of empties) {
+      try {
+        await chrome.bookmarks.removeTree(folder.id);
+        totalRemoved++;
+      } catch {
+        // Folder may have been removed already by a parent removal
+      }
+    }
+  }
+  return totalRemoved;
+}
+
 export function snapshotBookmarks(
   bookmarks: BookmarkInfo[],
 ): BookmarkSnapshot[] {

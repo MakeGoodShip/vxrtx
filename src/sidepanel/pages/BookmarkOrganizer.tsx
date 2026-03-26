@@ -8,7 +8,7 @@ import type {
   LocationSuggestion,
 } from "@/shared/types";
 
-type Mode = "menu" | "organize" | "locate" | "duplicates";
+type Mode = "menu" | "organize" | "locate" | "duplicates" | "cleanup";
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
 
 export function BookmarkOrganizer() {
@@ -34,6 +34,9 @@ export function BookmarkOrganizer() {
       {mode === "duplicates" && (
         <DuplicatesMode onBack={() => setMode("menu")} />
       )}
+      {mode === "cleanup" && (
+        <CleanupMode onBack={() => setMode("menu")} />
+      )}
     </div>
   );
 }
@@ -54,6 +57,11 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       id: "duplicates" as Mode,
       title: "Find Duplicates",
       description: "Scan for duplicate bookmarks and clean them up",
+    },
+    {
+      id: "cleanup" as Mode,
+      title: "Clean Up Empty Folders",
+      description: "Remove folders that no longer contain any bookmarks",
     },
   ];
 
@@ -138,6 +146,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
         moves,
         newFolders,
         removals: [],
+        cleanupEmptyFolders: true,
       });
 
       if (response.success) {
@@ -369,6 +378,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
         moves: [{ bookmarkId: selected.id, targetFolderId: folderId }],
         newFolders: [],
         removals: [],
+        cleanupEmptyFolders: true,
       });
       setStatus("pick");
       setSelected(null);
@@ -552,6 +562,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
         moves: [],
         newFolders: [],
         removals: Array.from(removals),
+        cleanupEmptyFolders: true,
       });
       if (response.success) {
         setStatus("done");
@@ -731,6 +742,82 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
               Done
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Empty Folder Cleanup Mode ──────────────────────────────────────
+
+function CleanupMode({ onBack }: { onBack: () => void }) {
+  const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
+  const [removed, setRemoved] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCleanup() {
+    setStatus("loading");
+    setError(null);
+    try {
+      const response = await sendMessage<void, { removed: number }>(
+        "cleanup-empty-folders",
+      );
+      if (response.success && response.data) {
+        setRemoved(response.data.removed);
+        setStatus("done");
+      } else {
+        setError(response.error ?? "Cleanup failed");
+        setStatus("idle");
+      }
+    } catch (err) {
+      setError(String(err));
+      setStatus("idle");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      {status === "idle" && (
+        <>
+          <p className="text-sm text-zinc-500">
+            Scan for and remove empty bookmark folders. This runs in multiple
+            passes to catch nested empty folders.
+          </p>
+          <button
+            onClick={handleCleanup}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            Clean Up Empty Folders
+          </button>
+        </>
+      )}
+
+      {status === "loading" && (
+        <div className="flex items-center gap-2 text-sm text-zinc-400">
+          <Spinner />
+          Scanning and removing empty folders...
+        </div>
+      )}
+
+      {status === "done" && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-green-800 bg-green-950/50 p-3 text-sm text-green-300">
+            {removed === 0
+              ? "No empty folders found — bookmarks are clean!"
+              : `Removed ${removed} empty folder${removed !== 1 ? "s" : ""}.`}
+          </div>
+          <button
+            onClick={onBack}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
+          >
+            Done
+          </button>
         </div>
       )}
     </div>

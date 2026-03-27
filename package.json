@@ -2,33 +2,23 @@
   "name": "vxrtx",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "description": "AI-powered tab and bookmark organization",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint src/"
-  },
-  "dependencies": {
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "zod": "^4.3.6"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "dev:extension": "pnpm --filter @vxrtx/extension dev",
+    "dev:web": "pnpm --filter @vxrtx/web dev",
+    "dev:docs": "pnpm --filter @vxrtx/docs dev",
+    "build:extension": "pnpm --filter @vxrtx/extension build",
+    "build:web": "pnpm --filter @vxrtx/web build",
+    "build:docs": "pnpm --filter @vxrtx/docs build"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.4.0",
-    "@tailwindcss/vite": "^4.2.2",
-    "@types/chrome": "^0.1.38",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "autoprefixer": "^10.4.27",
-    "eslint": "^10.1.0",
-    "postcss": "^8.5.8",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.3",
-    "vitest": "^4.1.2"
+    "turbo": "^2.5.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
   }
 }

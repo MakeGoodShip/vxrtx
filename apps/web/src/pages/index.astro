@@ -1,0 +1,66 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base>
+  <main class="mx-auto max-w-4xl px-6 py-24">
+    <div class="flex flex-col items-center text-center">
+      <img src="/favicon.svg" alt="vxrtx" class="mb-8 h-20 w-20" />
+
+      <h1 class="text-5xl font-bold tracking-tight">
+        <span class="text-brand-400">AI-powered</span> tab &amp; bookmark
+        organization
+      </h1>
+
+      <p class="mt-6 max-w-2xl text-lg text-zinc-400">
+        Stop drowning in tabs. Let AI organize your browser — on your terms.
+        Choose between fully local, privacy-conscious, or full-power cloud AI.
+      </p>
+
+      <div class="mt-10 flex gap-4">
+        <a
+          href="#"
+          class="rounded-lg bg-brand-500 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-400"
+        >
+          Add to Chrome
+        </a>
+        <a
+          href="#features"
+          class="rounded-lg border border-zinc-700 px-6 py-3 font-medium text-zinc-300 transition-colors hover:bg-zinc-800"
+        >
+          Learn More
+        </a>
+      </div>
+    </div>
+
+    <section id="features" class="mt-32 grid gap-8 md:grid-cols-3">
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <h3 class="text-lg font-semibold text-brand-400">Smart Tab Groups</h3>
+        <p class="mt-2 text-sm text-zinc-400">
+          AI analyzes your open tabs and suggests logical groups by topic,
+          project, or activity. Preview before applying.
+        </p>
+      </div>
+
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <h3 class="text-lg font-semibold text-brand-400">
+          Bookmark Organization
+        </h3>
+        <p class="mt-2 text-sm text-zinc-400">
+          Restructure your entire bookmark tree, find the right folder for new
+          bookmarks, or clean up duplicates.
+        </p>
+      </div>
+
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <h3 class="text-lg font-semibold text-brand-400">
+          Privacy Tiers
+        </h3>
+        <p class="mt-2 text-sm text-zinc-400">
+          Secure (fully local), Relaxed (minimal cloud data), or YOLO (full
+          cloud power). You control what leaves your machine.
+        </p>
+      </div>
+    </section>
+  </main>
+</Base>

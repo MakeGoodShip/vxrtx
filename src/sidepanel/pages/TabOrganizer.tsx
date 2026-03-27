@@ -279,7 +279,7 @@ export function TabOrganizer() {
         {status === "idle" && (
           <button
             onClick={handleOrganize}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-400"
           >
             Organize Tabs
           </button>
@@ -311,7 +311,7 @@ export function TabOrganizer() {
             <div className="space-y-1">
               <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
                 <div
-                  className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+                  className="h-full rounded-full bg-brand-400 transition-all duration-300"
                   style={{
                     width: `${Math.round((progress.current / progress.total) * 100)}%`,
                   }}
@@ -438,7 +438,7 @@ export function TabOrganizer() {
             <button
               onClick={handleApply}
               disabled={enabledCount === 0}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-400 disabled:opacity-40 disabled:hover:bg-brand-500"
             >
               Apply ({enabledCount})
             </button>
@@ -491,7 +491,7 @@ export function TabOrganizer() {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-500" />
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-brand-400" />
   );
 }
 
@@ -528,7 +528,7 @@ function TabCheckbox({
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-indigo-500 accent-indigo-500"
+        className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-brand-400 accent-brand-400"
       />
       <Favicon url={tab.favIconUrl} />
       <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">
@@ -572,7 +572,7 @@ function GroupCard({
           type="checkbox"
           checked={group.enabled}
           onChange={() => onToggle(index)}
-          className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-indigo-500"
+          className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-brand-400"
         />
 
         {/* Color picker */}
@@ -597,12 +597,12 @@ function GroupCard({
             onBlur={() => setEditingName(false)}
             onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
             autoFocus
-            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-indigo-500"
+            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
           />
         ) : (
           <button
             onClick={() => setEditingName(true)}
-            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-indigo-400"
+            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
             title="Click to rename"
           >
             {group.name}

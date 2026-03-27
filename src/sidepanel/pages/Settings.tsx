@@ -133,7 +133,7 @@ export function Settings() {
               onClick={() => save({ aiTier: tier.id })}
               className={`w-full rounded-lg border p-3 text-left transition-colors ${
                 settings.aiTier === tier.id
-                  ? "border-indigo-500 bg-indigo-950/30"
+                  ? "border-brand-400 bg-brand-950/30"
                   : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
               }`}
             >
@@ -207,7 +207,7 @@ export function Settings() {
                       onClick={() => save({ ollamaModel: model })}
                       className={`w-full rounded-md border px-3 py-1.5 text-left text-xs transition-colors ${
                         settings.ollamaModel === model
-                          ? "border-indigo-500 bg-indigo-950/30 text-indigo-400"
+                          ? "border-brand-400 bg-brand-950/30 text-brand-400"
                           : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700"
                       }`}
                     >
@@ -221,7 +221,7 @@ export function Settings() {
                   value={settings.ollamaModel}
                   onChange={(e) => save({ ollamaModel: e.target.value })}
                   placeholder="llama3.2"
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
                 />
               )}
             </div>
@@ -257,7 +257,7 @@ export function Settings() {
                 onClick={() => save({ aiModelProvider: provider.id })}
                 className={`w-full rounded-lg border p-2.5 text-left transition-colors ${
                   settings.aiModelProvider === provider.id
-                    ? "border-indigo-500 bg-indigo-950/30"
+                    ? "border-brand-400 bg-brand-950/30"
                     : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
                 }`}
               >
@@ -290,7 +290,7 @@ export function Settings() {
               value={settings.openrouterApiKey}
               onChange={(e) => save({ openrouterApiKey: e.target.value })}
               placeholder="sk-or-..."
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
             />
           </div>
 
@@ -304,7 +304,7 @@ export function Settings() {
                     onClick={() => save({ openrouterModel: model.id })}
                     className={`w-full rounded-md border px-3 py-1.5 text-left text-xs transition-colors ${
                       settings.openrouterModel === model.id
-                        ? "border-indigo-500 bg-indigo-950/30 text-indigo-400"
+                        ? "border-brand-400 bg-brand-950/30 text-brand-400"
                         : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700"
                     }`}
                   >
@@ -325,7 +325,7 @@ export function Settings() {
                   value={settings.openrouterModel}
                   onChange={(e) => save({ openrouterModel: e.target.value })}
                   placeholder="provider/model-name"
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
                 />
                 <button
                   onClick={() => setCustomModel(false)}
@@ -350,7 +350,7 @@ export function Settings() {
             value={settings.claudeApiKey}
             onChange={(e) => save({ claudeApiKey: e.target.value })}
             placeholder="sk-ant-..."
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
           />
         </section>
       )}
@@ -365,7 +365,7 @@ export function Settings() {
             value={settings.openaiApiKey}
             onChange={(e) => save({ openaiApiKey: e.target.value })}
             placeholder="sk-..."
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
           />
         </section>
       )}
@@ -384,7 +384,7 @@ export function Settings() {
             onChange={(e) =>
               save({ staleDaysThreshold: parseInt(e.target.value) || 7 })
             }
-            className="w-20 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+            className="w-20 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-brand-400 focus:outline-none"
           />
           <span className="text-sm text-zinc-500">days</span>
         </div>
@@ -436,14 +436,14 @@ function ChromeAIHelp({
 
   if (status === "downloadable" && !downloading) {
     return (
-      <div className="rounded-lg border border-indigo-800/50 bg-indigo-950/20 p-3">
-        <p className="text-xs text-indigo-300/80">
+      <div className="rounded-lg border border-brand-800/50 bg-brand-950/20 p-3">
+        <p className="text-xs text-brand-300/80">
           Chrome AI model (Gemini Nano) is available but needs to be downloaded
           first. This is a one-time download handled by Chrome.
         </p>
         <button
           onClick={handleDownload}
-          className="mt-2 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500"
+          className="mt-2 rounded-md bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-400"
         >
           Download Model
         </button>
@@ -453,10 +453,10 @@ function ChromeAIHelp({
 
   if (status === "downloading" || downloading) {
     return (
-      <div className="rounded-lg border border-indigo-800/50 bg-indigo-950/20 p-3">
+      <div className="rounded-lg border border-brand-800/50 bg-brand-950/20 p-3">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-800 border-t-indigo-400" />
-          <p className="text-xs text-indigo-300/80">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-brand-800 border-t-brand-400" />
+          <p className="text-xs text-brand-300/80">
             Downloading AI model... This may take a few minutes.
             You can use other features while it downloads.
           </p>
@@ -503,7 +503,7 @@ function LocalBackendOption({
       onClick={onSelect}
       className={`w-full rounded-lg border p-3 text-left transition-colors ${
         selected
-          ? "border-indigo-500 bg-indigo-950/30"
+          ? "border-brand-400 bg-brand-950/30"
           : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
       }`}
     >

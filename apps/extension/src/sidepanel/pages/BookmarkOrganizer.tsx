@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { sendMessage } from "@/shared/messaging";
 import type {
   BookmarkInfo,
@@ -6,6 +6,7 @@ import type {
   BookmarkDuplicateGroup,
   FolderInfo,
   LocationSuggestion,
+  LockedBookmarkFolder,
 } from "@/shared/types";
 
 type Mode = "menu" | "organize" | "locate" | "duplicates" | "cleanup";
@@ -42,6 +43,72 @@ export function BookmarkOrganizer() {
 }
 
 function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
+  const [folders, setFolders] = useState<FolderInfo[]>([]);
+  const [lockedIds, setLockedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    loadFoldersAndLocks();
+  }, []);
+
+  async function loadFoldersAndLocks() {
+    // Load top-level bookmark folders
+    try {
+      const tree = await chrome.bookmarks.getTree();
+      const topFolders: FolderInfo[] = [];
+      for (const root of tree) {
+        if (root.children) {
+          for (const child of root.children) {
+            if (!child.url && child.children) {
+              // This is a top-level folder (Bookmarks Bar, Other Bookmarks, etc.)
+              for (const folder of child.children) {
+                if (!folder.url) {
+                  topFolders.push({
+                    id: folder.id,
+                    title: folder.title,
+                    path: `${child.title}/${folder.title}`,
+                    parentId: child.id,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      setFolders(topFolders);
+    } catch {
+      // May not have access yet
+    }
+
+    const res = await sendMessage<void, LockedBookmarkFolder[]>(
+      "get-locked-bookmark-folders",
+    );
+    if (res.success && res.data) {
+      setLockedIds(new Set(res.data.map((f) => f.folderId)));
+    }
+  }
+
+  async function handleLock(folder: FolderInfo) {
+    const res = await sendMessage("lock-bookmark-folder", {
+      folderId: folder.id,
+      title: folder.title,
+      path: folder.path,
+    });
+    if (res.success) {
+      setLockedIds((prev) => new Set([...prev, folder.id]));
+    }
+  }
+
+  async function handleUnlock(folderId: string) {
+    const res = await sendMessage("unlock-bookmark-folder", { folderId });
+    if (res.success) {
+      setLockedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(folderId);
+        return next;
+      });
+    }
+  }
+
   const modes = [
     {
       id: "organize" as Mode,
@@ -66,17 +133,73 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
   ];
 
   return (
-    <div className="space-y-2">
-      {modes.map((m) => (
-        <button
-          key={m.id}
-          onClick={() => onSelect(m.id)}
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-zinc-700"
-        >
-          <div className="text-sm font-medium text-zinc-200">{m.title}</div>
-          <div className="mt-0.5 text-xs text-zinc-500">{m.description}</div>
-        </button>
-      ))}
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {modes.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => onSelect(m.id)}
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-zinc-700"
+          >
+            <div className="text-sm font-medium text-zinc-200">{m.title}</div>
+            <div className="mt-0.5 text-xs text-zinc-500">
+              {m.description}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {folders.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium text-zinc-300">
+            Bookmark Folders
+            {lockedIds.size > 0 && (
+              <span className="ml-1 text-xs text-zinc-500">
+                ({lockedIds.size} locked)
+              </span>
+            )}
+          </h3>
+          <p className="text-xs text-zinc-600">
+            Locked folders are excluded from all organization.
+          </p>
+          {folders.map((folder) => {
+            const isLocked = lockedIds.has(folder.id);
+            return (
+              <div
+                key={folder.id}
+                className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+                  isLocked
+                    ? "border-amber-800/50 bg-amber-950/10"
+                    : "border-zinc-800 bg-zinc-900"
+                }`}
+              >
+                <span className="text-xs text-zinc-500">📁</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
+                  {folder.title}
+                </span>
+                <span className="shrink-0 text-[10px] text-zinc-600">
+                  {folder.path.split("/")[0]}
+                </span>
+                <button
+                  onClick={() =>
+                    isLocked
+                      ? handleUnlock(folder.id)
+                      : handleLock(folder)
+                  }
+                  className={`shrink-0 px-1 text-sm transition-colors ${
+                    isLocked
+                      ? "text-amber-400 hover:text-amber-300"
+                      : "text-zinc-600 hover:text-zinc-400"
+                  }`}
+                  title={isLocked ? "Unlock folder" : "Lock folder"}
+                >
+                  {isLocked ? "🔒" : "🔓"}
+                </button>
+              </div>
+            );
+          })}
+        </section>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type {
   TabOrganizationResult,
   TabSnapshot,
   LockedTabGroup,
+  LockedBookmarkFolder,
   BookmarkInfo,
   BookmarkSnapshot,
   BookmarkOrganizationResult,
@@ -20,6 +21,8 @@ import {
   clearSessionData,
   getLockedTabGroups,
   saveLockedTabGroups,
+  getLockedBookmarkFolders,
+  saveLockedBookmarkFolders,
 } from "@/core/storage";
 import {
   queryAllTabs,
@@ -45,6 +48,7 @@ import {
   createFolder,
   removeBookmark,
   removeEmptyFolders,
+  getDeepLockedBookmarkIds,
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
@@ -109,6 +113,19 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
     case "cleanup-empty-folders":
       return await handleCleanupEmptyFolders();
+
+    case "get-locked-bookmark-folders":
+      return { success: true, data: await getLockedBookmarkFolders() };
+
+    case "lock-bookmark-folder":
+      return await handleLockBookmarkFolder(
+        message.payload as { folderId: string; title: string; path: string },
+      );
+
+    case "unlock-bookmark-folder":
+      return await handleUnlockBookmarkFolder(
+        message.payload as { folderId: string },
+      );
 
     case "get-locked-tab-groups":
       return await handleGetLockedTabGroups();
@@ -378,6 +395,35 @@ async function handleUnlockTabGroup(
   return { success: true };
 }
 
+// ─── Bookmark Folder Locking ────────────────────────────────────────
+
+async function handleLockBookmarkFolder(
+  payload: { folderId: string; title: string; path: string },
+): Promise<MessageResponse> {
+  const stored = await getLockedBookmarkFolders();
+  if (stored.some((f) => f.folderId === payload.folderId)) {
+    return { success: true };
+  }
+  const entry: LockedBookmarkFolder = {
+    folderId: payload.folderId,
+    title: payload.title,
+    path: payload.path,
+    lockedAt: Date.now(),
+  };
+  await saveLockedBookmarkFolders([...stored, entry]);
+  return { success: true };
+}
+
+async function handleUnlockBookmarkFolder(
+  payload: { folderId: string },
+): Promise<MessageResponse> {
+  const stored = await getLockedBookmarkFolders();
+  await saveLockedBookmarkFolders(
+    stored.filter((f) => f.folderId !== payload.folderId),
+  );
+  return { success: true };
+}
+
 // ─── Bookmark Organization ──────────────────────────────────────────
 
 interface BookmarkOrganizeResponse {
@@ -407,14 +453,19 @@ async function handleOrganizeBookmarks(): Promise<
 > {
   const settings = await getSettings();
   const tree = await getBookmarkTree();
-  const bookmarks = flattenBookmarks(tree);
+  const allBookmarks = flattenBookmarks(tree);
   const folders = extractFolders(tree);
 
   // Snapshot for undo
   await setSessionData(
     STORAGE_KEYS.BOOKMARK_SNAPSHOT,
-    snapshotBookmarks(bookmarks),
+    snapshotBookmarks(allBookmarks),
   );
+
+  // Filter out bookmarks in locked folders
+  const lockedFolders = await getLockedBookmarkFolders();
+  const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
+  const bookmarks = allBookmarks.filter((b) => !lockedBookmarkIds.has(b.id));
 
   if (settings.aiTier === "secure") {
     // Rule-based: no restructuring, just return current state
@@ -465,8 +516,14 @@ async function handleFindDuplicateBookmarks(): Promise<
   MessageResponse<BookmarkDuplicateResponse>
 > {
   const tree = await getBookmarkTree();
-  const bookmarks = flattenBookmarks(tree);
+  const allBookmarks = flattenBookmarks(tree);
   const folderPathMap = buildFolderPathMap(tree);
+
+  // Filter out bookmarks in locked folders
+  const lockedFolders = await getLockedBookmarkFolders();
+  const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
+  const bookmarks = allBookmarks.filter((b) => !lockedBookmarkIds.has(b.id));
+
   const duplicates = findDuplicateBookmarksDetailed(bookmarks);
 
   const folderPaths: Record<string, string> = {};
@@ -526,6 +583,10 @@ async function handleApplyBookmarkSuggestions(
     snapshotBookmarks(bookmarks),
   );
 
+  // Build locked set so we never move/remove locked bookmarks
+  const lockedFolders = await getLockedBookmarkFolders();
+  const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
+
   // Create new folders first and build a map of placeholder → real ID
   const folderIdMap = new Map<string, string>();
   for (const folder of payload.newFolders) {
@@ -533,8 +594,9 @@ async function handleApplyBookmarkSuggestions(
     folderIdMap.set(`${folder.name}:${folder.parentId}`, created.id);
   }
 
-  // Apply moves
+  // Apply moves (skip locked bookmarks)
   for (const move of payload.moves) {
+    if (lockedBookmarkIds.has(move.bookmarkId)) continue;
     const resolvedFolderId =
       folderIdMap.get(move.targetFolderId) ?? move.targetFolderId;
     try {
@@ -544,8 +606,9 @@ async function handleApplyBookmarkSuggestions(
     }
   }
 
-  // Remove duplicates
+  // Remove duplicates (skip locked bookmarks)
   for (const id of payload.removals) {
+    if (lockedBookmarkIds.has(id)) continue;
     try {
       await removeBookmark(id);
     } catch (err) {

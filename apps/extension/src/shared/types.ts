@@ -70,6 +70,13 @@ export interface LockedTabGroup {
   lockedAt: number;
 }
 
+export interface LockedBookmarkFolder {
+  folderId: string;
+  title: string;
+  path: string;
+  lockedAt: number;
+}
+
 export interface BookmarkInfo {
   id: string;
   title: string;

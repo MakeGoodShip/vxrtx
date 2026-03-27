@@ -3,6 +3,7 @@ import type {
   BookmarkSnapshot,
   FolderInfo,
   BookmarkDuplicateGroup,
+  LockedBookmarkFolder,
 } from "@/shared/types";
 
 export async function getBookmarkTree(): Promise<
@@ -205,4 +206,45 @@ export function snapshotBookmarks(
       parentId: b.parentId!,
       index: b.index!,
     }));
+}
+
+/**
+ * Returns the set of bookmark IDs that live inside any locked folder
+ * (including nested children of locked folders).
+ */
+export function getLockedBookmarkIds(
+  lockedFolders: LockedBookmarkFolder[],
+  bookmarks: BookmarkInfo[],
+): Set<string> {
+  const lockedFolderIds = new Set(lockedFolders.map((f) => f.folderId));
+  return new Set(
+    bookmarks
+      .filter((b) => b.parentId !== undefined && lockedFolderIds.has(b.parentId!))
+      .map((b) => b.id),
+  );
+}
+
+/**
+ * Returns bookmark IDs in locked folders, walking the full tree
+ * to catch nested subfolders of locked parents.
+ */
+export function getDeepLockedBookmarkIds(
+  lockedFolders: LockedBookmarkFolder[],
+  tree: chrome.bookmarks.BookmarkTreeNode[],
+): Set<string> {
+  const lockedFolderIds = new Set(lockedFolders.map((f) => f.folderId));
+  const lockedIds = new Set<string>();
+
+  function walk(node: chrome.bookmarks.BookmarkTreeNode, parentLocked: boolean) {
+    const isLocked = parentLocked || lockedFolderIds.has(node.id);
+    if (isLocked && node.url) {
+      lockedIds.add(node.id);
+    }
+    if (node.children) {
+      for (const child of node.children) walk(child, isLocked);
+    }
+  }
+
+  for (const node of tree) walk(node, false);
+  return lockedIds;
 }

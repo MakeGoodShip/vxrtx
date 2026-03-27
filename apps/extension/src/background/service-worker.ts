@@ -4,6 +4,7 @@ import type {
   TabInfo,
   TabOrganizationResult,
   TabSnapshot,
+  LockedTabGroup,
   BookmarkInfo,
   BookmarkSnapshot,
   BookmarkOrganizationResult,
@@ -17,9 +18,12 @@ import {
   setSessionData,
   getSessionData,
   clearSessionData,
+  getLockedTabGroups,
+  saveLockedTabGroups,
 } from "@/core/storage";
 import {
   queryAllTabs,
+  queryTabGroups,
   createTabGroup,
   ungroupTabs,
   closeTabs,
@@ -27,6 +31,8 @@ import {
   findStaleTabs,
   groupByDomain,
   domainToTabGroups,
+  getLockedTabIds,
+  resolveStaleLockedGroups,
 } from "@/core/tabs";
 import {
   getBookmarkTree,
@@ -104,6 +110,19 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
     case "cleanup-empty-folders":
       return await handleCleanupEmptyFolders();
 
+    case "get-locked-tab-groups":
+      return await handleGetLockedTabGroups();
+
+    case "lock-tab-group":
+      return await handleLockTabGroup(
+        message.payload as { chromeGroupId: number },
+      );
+
+    case "unlock-tab-group":
+      return await handleUnlockTabGroup(
+        message.payload as { chromeGroupId: number },
+      );
+
     default:
       return { success: false, error: `Unknown action: ${message.action}` };
   }
@@ -115,14 +134,21 @@ async function handleOrganizeTabs(): Promise<
   MessageResponse<TabOrganizationResult>
 > {
   const settings = await getSettings();
-  const tabs = await queryAllTabs();
+  const allTabs = await queryAllTabs();
 
-  const snapshot: TabSnapshot[] = tabs.map((t) => ({
+  const snapshot: TabSnapshot[] = allTabs.map((t) => ({
     id: t.id,
     groupId: t.groupId,
     windowId: t.windowId,
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
+
+  // Filter out tabs in locked groups
+  const windowId = allTabs[0]?.windowId;
+  const lockedGroups =
+    windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+  const lockedTabIds = getLockedTabIds(lockedGroups, allTabs);
+  const tabs = allTabs.filter((t) => !lockedTabIds.has(t.id));
 
   let result: TabOrganizationResult;
 
@@ -146,6 +172,10 @@ async function handleOrganizeTabs(): Promise<
     }
   }
 
+  if (lockedGroups.length > 0) {
+    result.reasoning = `${lockedGroups.length} locked group(s) excluded. ${result.reasoning ?? ""}`;
+  }
+
   return { success: true, data: result };
 }
 
@@ -158,6 +188,10 @@ async function handleApplyTabSuggestions(
     return { success: false, error: "No window found" };
   }
 
+  // Resolve locked groups and build protected tab ID set
+  const lockedGroups = await resolveLockedGroups(windowId);
+  const lockedTabIds = getLockedTabIds(lockedGroups, tabs);
+
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
     groupId: t.groupId,
@@ -166,16 +200,16 @@ async function handleApplyTabSuggestions(
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
   for (const group of result.groups) {
-    const validTabIds = group.tabIds.filter((id) =>
-      tabs.some((t) => t.id === id),
+    const validTabIds = group.tabIds.filter(
+      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validTabIds.length === 0) continue;
     await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
   }
 
   if (result.stale.length > 0) {
-    const validStale = result.stale.filter((id) =>
-      tabs.some((t) => t.id === id),
+    const validStale = result.stale.filter(
+      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validStale.length > 0) await closeTabs(validStale);
   }
@@ -184,7 +218,9 @@ async function handleApplyTabSuggestions(
     if (dupSet.length > 1) {
       const validDups = dupSet
         .slice(1)
-        .filter((id) => tabs.some((t) => t.id === id));
+        .filter(
+          (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+        );
       if (validDups.length > 0) await closeTabs(validDups);
     }
   }
@@ -201,17 +237,25 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
   }
 
   const currentTabs = await queryAllTabs();
+  const windowId = currentTabs[0]?.windowId;
 
+  // Resolve locked groups — their tabs must not be ungrouped or moved
+  const lockedGroups =
+    windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+  const lockedTabIds = getLockedTabIds(lockedGroups, currentTabs);
+
+  // Ungroup all non-locked grouped tabs
   const groupedTabIds = currentTabs
-    .filter((t) => t.groupId !== -1)
+    .filter((t) => t.groupId !== -1 && !lockedTabIds.has(t.id))
     .map((t) => t.id);
   if (groupedTabIds.length > 0) {
     await ungroupTabs(groupedTabIds);
   }
 
+  // Re-group non-locked tabs from snapshot
   const groupMap = new Map<number, number[]>();
   for (const entry of snapshot) {
-    if (entry.groupId !== -1) {
+    if (entry.groupId !== -1 && !lockedTabIds.has(entry.id)) {
       const existing = groupMap.get(entry.groupId);
       if (existing) {
         existing.push(entry.id);
@@ -221,7 +265,6 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
     }
   }
 
-  const windowId = currentTabs[0]?.windowId;
   if (windowId !== undefined) {
     for (const tabIds of groupMap.values()) {
       const validIds = tabIds.filter((id) =>
@@ -256,6 +299,83 @@ function ruleBasedOrganize(
     duplicates,
     reasoning: "Grouped by domain (rule-based)",
   };
+}
+
+// ─── Tab Group Locking ──────────────────────────────────────────────
+
+async function resolveLockedGroups(
+  windowId: number,
+): Promise<LockedTabGroup[]> {
+  const stored = await getLockedTabGroups();
+  if (stored.length === 0) return [];
+
+  const liveGroups = await queryTabGroups(windowId);
+  const { resolved, changed } = resolveStaleLockedGroups(stored, liveGroups);
+  if (changed) await saveLockedTabGroups(resolved);
+  return resolved;
+}
+
+async function handleGetLockedTabGroups(): Promise<
+  MessageResponse<{ locked: LockedTabGroup[]; dormant: LockedTabGroup[] }>
+> {
+  const tabs = await queryAllTabs();
+  const windowId = tabs[0]?.windowId;
+  if (windowId === undefined) {
+    return { success: true, data: { locked: [], dormant: [] } };
+  }
+
+  const stored = await getLockedTabGroups();
+  if (stored.length === 0) {
+    return { success: true, data: { locked: [], dormant: [] } };
+  }
+
+  const liveGroups = await queryTabGroups(windowId);
+  const { resolved, changed } = resolveStaleLockedGroups(stored, liveGroups);
+  if (changed) await saveLockedTabGroups(resolved);
+
+  const liveIds = new Set(liveGroups.map((g) => g.id));
+  const locked = resolved.filter((g) => liveIds.has(g.chromeGroupId));
+  const dormant = resolved.filter((g) => !liveIds.has(g.chromeGroupId));
+
+  return { success: true, data: { locked, dormant } };
+}
+
+async function handleLockTabGroup(
+  payload: { chromeGroupId: number },
+): Promise<MessageResponse> {
+  try {
+    const group = await chrome.tabGroups.get(payload.chromeGroupId);
+    const stored = await getLockedTabGroups();
+
+    // Don't double-lock
+    if (stored.some((g) => g.chromeGroupId === payload.chromeGroupId)) {
+      return { success: true };
+    }
+
+    const entry: LockedTabGroup = {
+      chromeGroupId: payload.chromeGroupId,
+      name: group.title ?? "",
+      color: group.color as LockedTabGroup["color"],
+      lockedAt: Date.now(),
+    };
+    await saveLockedTabGroups([...stored, entry]);
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to lock group: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+async function handleUnlockTabGroup(
+  payload: { chromeGroupId: number },
+): Promise<MessageResponse> {
+  const stored = await getLockedTabGroups();
+  await saveLockedTabGroups(
+    stored.filter((g) => g.chromeGroupId !== payload.chromeGroupId),
+  );
+  return { success: true };
 }
 
 // ─── Bookmark Organization ──────────────────────────────────────────

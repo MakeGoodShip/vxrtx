@@ -63,6 +63,13 @@ export interface TabSnapshot {
   windowId: number;
 }
 
+export interface LockedTabGroup {
+  chromeGroupId: number;
+  name: string;
+  color: TabGroupColor;
+  lockedAt: number;
+}
+
 export interface BookmarkInfo {
   id: string;
   title: string;

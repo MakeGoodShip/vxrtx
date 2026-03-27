@@ -11,6 +11,9 @@ export type MessageAction =
   | "get-locked-tab-groups"
   | "lock-tab-group"
   | "unlock-tab-group"
+  | "get-locked-bookmark-folders"
+  | "lock-bookmark-folder"
+  | "unlock-bookmark-folder"
   | "get-settings"
   | "save-settings";
 

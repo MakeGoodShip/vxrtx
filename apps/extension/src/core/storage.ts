@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "@/shared/constants";
-import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup } from "@/shared/types";
+import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder } from "@/shared/types";
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
@@ -35,6 +35,19 @@ export async function clearSessionData(key: string): Promise<void> {
 export async function getLockedTabGroups(): Promise<LockedTabGroup[]> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.LOCKED_TAB_GROUPS);
   return (result[STORAGE_KEYS.LOCKED_TAB_GROUPS] as LockedTabGroup[]) ?? [];
+}
+
+export async function getLockedBookmarkFolders(): Promise<LockedBookmarkFolder[]> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.LOCKED_BOOKMARK_FOLDERS);
+  return (result[STORAGE_KEYS.LOCKED_BOOKMARK_FOLDERS] as LockedBookmarkFolder[]) ?? [];
+}
+
+export async function saveLockedBookmarkFolders(
+  folders: LockedBookmarkFolder[],
+): Promise<void> {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LOCKED_BOOKMARK_FOLDERS]: folders,
+  });
 }
 
 export async function saveLockedTabGroups(

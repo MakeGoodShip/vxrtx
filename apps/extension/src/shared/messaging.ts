@@ -8,6 +8,9 @@ export type MessageAction =
   | "apply-bookmark-suggestions"
   | "undo-bookmark-changes"
   | "cleanup-empty-folders"
+  | "get-locked-tab-groups"
+  | "lock-tab-group"
+  | "unlock-tab-group"
   | "get-settings"
   | "save-settings";
 

@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "@/shared/constants";
-import { DEFAULT_SETTINGS, type Settings } from "@/shared/types";
+import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup } from "@/shared/types";
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
@@ -30,4 +30,17 @@ export async function setSessionData<T>(
 
 export async function clearSessionData(key: string): Promise<void> {
   await chrome.storage.session.remove(key);
+}
+
+export async function getLockedTabGroups(): Promise<LockedTabGroup[]> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.LOCKED_TAB_GROUPS);
+  return (result[STORAGE_KEYS.LOCKED_TAB_GROUPS] as LockedTabGroup[]) ?? [];
+}
+
+export async function saveLockedTabGroups(
+  groups: LockedTabGroup[],
+): Promise<void> {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LOCKED_TAB_GROUPS]: groups,
+  });
 }

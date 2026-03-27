@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { sendMessage } from "@/shared/messaging";
 import type {
   TabOrganizationResult,
   TabGroupSuggestion,
   TabGroupColor,
   TabInfo,
+  LockedTabGroup,
 } from "@/shared/types";
 
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
@@ -20,6 +21,13 @@ interface PreviewState {
   tabs: Map<number, TabInfo>;
   reasoning?: string;
   allDuplicates: number[][];
+}
+
+interface ChromeGroup {
+  id: number;
+  title: string;
+  color: TabGroupColor;
+  tabCount: number;
 }
 
 const GROUP_COLORS: TabGroupColor[] = [
@@ -39,6 +47,90 @@ export function TabOrganizer() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
+
+  // Lock state
+  const [chromeGroups, setChromeGroups] = useState<ChromeGroup[]>([]);
+  const [lockedIds, setLockedIds] = useState<Set<number>>(new Set());
+  const [dormantLocks, setDormantLocks] = useState<LockedTabGroup[]>([]);
+
+  // Load current Chrome groups + locked state on mount and when returning to idle
+  useEffect(() => {
+    if (status === "idle") loadGroupsAndLocks();
+  }, [status]);
+
+  async function loadGroupsAndLocks() {
+    try {
+      // Get current tabs to find windowId and count tabs per group
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const windowId = tabs[0]?.windowId;
+      if (windowId === undefined) return;
+
+      const groups = await chrome.tabGroups.query({ windowId });
+      const tabCountByGroup = new Map<number, number>();
+      for (const tab of tabs) {
+        if (tab.groupId !== undefined && tab.groupId !== -1) {
+          tabCountByGroup.set(
+            tab.groupId,
+            (tabCountByGroup.get(tab.groupId) ?? 0) + 1,
+          );
+        }
+      }
+
+      setChromeGroups(
+        groups.map((g) => ({
+          id: g.id,
+          title: g.title ?? "",
+          color: g.color as TabGroupColor,
+          tabCount: tabCountByGroup.get(g.id) ?? 0,
+        })),
+      );
+
+      // Load locked groups
+      const lockRes = await sendMessage<
+        void,
+        { locked: LockedTabGroup[]; dormant: LockedTabGroup[] }
+      >("get-locked-tab-groups");
+      if (lockRes.success && lockRes.data) {
+        setLockedIds(
+          new Set(lockRes.data.locked.map((g) => g.chromeGroupId)),
+        );
+        setDormantLocks(lockRes.data.dormant);
+      }
+    } catch {
+      // Side panel may not have access yet
+    }
+  }
+
+  async function handleLock(groupId: number) {
+    const res = await sendMessage("lock-tab-group", {
+      chromeGroupId: groupId,
+    });
+    if (res.success) {
+      setLockedIds((prev) => new Set([...prev, groupId]));
+    }
+  }
+
+  async function handleUnlock(groupId: number) {
+    const res = await sendMessage("unlock-tab-group", {
+      chromeGroupId: groupId,
+    });
+    if (res.success) {
+      setLockedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(groupId);
+        return next;
+      });
+    }
+  }
+
+  async function handleRemoveDormantLock(lock: LockedTabGroup) {
+    await sendMessage("unlock-tab-group", {
+      chromeGroupId: lock.chromeGroupId,
+    });
+    setDormantLocks((prev) =>
+      prev.filter((l) => l.chromeGroupId !== lock.chromeGroupId),
+    );
+  }
 
   async function handleOrganize() {
     setStatus("loading");
@@ -83,7 +175,9 @@ export function TabOrganizer() {
           .map(({ enabled: _, ...g }) => g),
         stale: Array.from(preview.staleEnabled),
         duplicates: preview.allDuplicates
-          .map((set) => set.filter((id) => preview.duplicatesEnabled.has(id)))
+          .map((set) =>
+            set.filter((id) => preview.duplicatesEnabled.has(id)),
+          )
           .filter((set) => set.length > 0)
           .map((toClose) => [0, ...toClose]),
         reasoning: preview.reasoning,
@@ -214,7 +308,7 @@ export function TabOrganizer() {
         {status === "idle" && (
           <button
             onClick={handleOrganize}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal transition-colors hover:bg-brand-400"
           >
             Organize Tabs
           </button>
@@ -225,6 +319,101 @@ export function TabOrganizer() {
         <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
           {error}
         </div>
+      )}
+
+      {/* Idle state: show current groups with lock toggles */}
+      {status === "idle" && chromeGroups.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium text-zinc-300">
+            Tab Groups
+            {lockedIds.size > 0 && (
+              <span className="ml-1 text-xs text-zinc-500">
+                ({lockedIds.size} locked)
+              </span>
+            )}
+          </h3>
+          {chromeGroups.map((group) => {
+            const isLocked = lockedIds.has(group.id);
+            return (
+              <div
+                key={group.id}
+                className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+                  isLocked
+                    ? "border-amber-800/50 bg-amber-950/10"
+                    : "border-zinc-800 bg-zinc-900"
+                }`}
+              >
+                <div
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: colorToHex(group.color) }}
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
+                  {group.title || "Untitled"}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-500">
+                  {group.tabCount} tab{group.tabCount !== 1 ? "s" : ""}
+                </span>
+                <button
+                  onClick={() =>
+                    isLocked
+                      ? handleUnlock(group.id)
+                      : handleLock(group.id)
+                  }
+                  className={`shrink-0 px-1 text-sm transition-colors ${
+                    isLocked
+                      ? "text-amber-400 hover:text-amber-300"
+                      : "text-zinc-600 hover:text-zinc-400"
+                  }`}
+                  title={isLocked ? "Unlock group" : "Lock group"}
+                >
+                  {isLocked ? "🔒" : "🔓"}
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Dormant locks */}
+          {dormantLocks.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[10px] text-zinc-600">
+                Dormant locks (group no longer open):
+              </p>
+              {dormantLocks.map((lock) => (
+                <div
+                  key={lock.chromeGroupId}
+                  className="flex items-center gap-2 rounded-md border border-zinc-800/50 bg-zinc-900/30 px-2.5 py-1.5"
+                >
+                  <div
+                    className="h-2.5 w-2.5 shrink-0 rounded-full opacity-40"
+                    style={{ backgroundColor: colorToHex(lock.color) }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-zinc-500">
+                    {lock.name || "Untitled"}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveDormantLock(lock)}
+                    className="shrink-0 text-[10px] text-zinc-600 hover:text-red-400"
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {status === "idle" && !error && chromeGroups.length === 0 && (
+        <p className="text-sm text-zinc-500">
+          Click "Organize Tabs" to analyze and group your open tabs.
+        </p>
+      )}
+
+      {status === "idle" && !error && chromeGroups.length > 0 && (
+        <p className="text-xs text-zinc-600">
+          Locked groups are excluded from all organization. Click "Organize
+          Tabs" to analyze unlocked tabs.
+        </p>
       )}
 
       {status === "loading" && (
@@ -347,7 +536,7 @@ export function TabOrganizer() {
             <button
               onClick={handleApply}
               disabled={enabledCount === 0}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal transition-colors hover:bg-brand-400 disabled:opacity-40 disabled:hover:bg-brand-500"
             >
               Apply ({enabledCount})
             </button>
@@ -391,12 +580,6 @@ export function TabOrganizer() {
           </div>
         </div>
       )}
-
-      {status === "idle" && !error && (
-        <p className="text-sm text-zinc-500">
-          Click "Organize Tabs" to analyze and group your open tabs.
-        </p>
-      )}
     </div>
   );
 }
@@ -405,7 +588,7 @@ export function TabOrganizer() {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-500" />
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-brand-400" />
   );
 }
 
@@ -442,7 +625,7 @@ function TabCheckbox({
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-indigo-500 accent-indigo-500"
+        className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-brand-400 accent-brand-400"
       />
       <Favicon url={tab.favIconUrl} />
       <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">
@@ -486,7 +669,7 @@ function GroupCard({
           type="checkbox"
           checked={group.enabled}
           onChange={() => onToggle(index)}
-          className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-indigo-500"
+          className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-brand-400"
         />
 
         {/* Color picker */}
@@ -511,12 +694,12 @@ function GroupCard({
             onBlur={() => setEditingName(false)}
             onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
             autoFocus
-            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-indigo-500"
+            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
           />
         ) : (
           <button
             onClick={() => setEditingName(true)}
-            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-indigo-400"
+            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
             title="Click to rename"
           >
             {group.name}

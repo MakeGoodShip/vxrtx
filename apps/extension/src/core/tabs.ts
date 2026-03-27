@@ -2,6 +2,7 @@ import type {
   TabInfo,
   TabGroupColor,
   TabGroupSuggestion,
+  LockedTabGroup,
 } from "@/shared/types";
 
 export async function queryAllTabs(): Promise<TabInfo[]> {
@@ -17,6 +18,43 @@ export async function queryAllTabs(): Promise<TabInfo[]> {
       groupId: tab.groupId ?? chrome.tabGroups?.TAB_GROUP_ID_NONE ?? -1,
       windowId: tab.windowId,
     }));
+}
+
+export async function queryTabGroups(
+  windowId: number,
+): Promise<chrome.tabGroups.TabGroup[]> {
+  return chrome.tabGroups.query({ windowId });
+}
+
+export function getLockedTabIds(
+  lockedGroups: LockedTabGroup[],
+  tabs: TabInfo[],
+): Set<number> {
+  const lockedGroupIds = new Set(lockedGroups.map((g) => g.chromeGroupId));
+  return new Set(
+    tabs.filter((t) => lockedGroupIds.has(t.groupId)).map((t) => t.id),
+  );
+}
+
+export function resolveStaleLockedGroups(
+  lockedGroups: LockedTabGroup[],
+  liveGroups: chrome.tabGroups.TabGroup[],
+): { resolved: LockedTabGroup[]; changed: boolean } {
+  const liveIds = new Set(liveGroups.map((g) => g.id));
+  let changed = false;
+  const resolved = lockedGroups.map((locked) => {
+    if (liveIds.has(locked.chromeGroupId)) return locked;
+    // Try to match by name + color
+    const match = liveGroups.find(
+      (g) => g.title === locked.name && g.color === locked.color,
+    );
+    if (match) {
+      changed = true;
+      return { ...locked, chromeGroupId: match.id };
+    }
+    return locked;
+  });
+  return { resolved, changed };
 }
 
 export async function createTabGroup(

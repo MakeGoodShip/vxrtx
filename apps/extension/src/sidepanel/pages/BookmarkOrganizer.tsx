@@ -186,7 +186,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
           </p>
           <button
             onClick={handleAnalyze}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
           >
             Analyze Bookmarks
           </button>
@@ -238,7 +238,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
                           return next;
                         });
                       }}
-                      className="h-3.5 w-3.5 accent-indigo-500"
+                      className="h-3.5 w-3.5 accent-brand-400"
                     />
                     <span className="text-sm font-medium">{folder.name}</span>
                     <span className="text-xs text-zinc-500">
@@ -271,7 +271,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
                 <button
                   onClick={handleApply}
                   disabled={enabledFolders.size === 0}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400 disabled:opacity-40"
                 >
                   Apply ({enabledFolders.size})
                 </button>
@@ -416,7 +416,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search bookmarks..."
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
           />
           <div className="max-h-80 space-y-1 overflow-y-auto">
             {filtered.slice(0, 50).map((bm) => (
@@ -483,13 +483,13 @@ function LocateMode({ onBack }: { onBack: () => void }) {
             <button
               key={i}
               onClick={() => handleMove(s.folderId)}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-indigo-600"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-brand-500"
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-200">
                   {s.folderPath}
                 </span>
-                <span className="shrink-0 rounded-full bg-indigo-950 px-2 py-0.5 text-[10px] text-indigo-400">
+                <span className="shrink-0 rounded-full bg-brand-950 px-2 py-0.5 text-[10px] text-brand-400">
                   {Math.round(s.confidence * 100)}%
                 </span>
               </div>
@@ -606,7 +606,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
           </p>
           <button
             onClick={handleScan}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
           >
             Scan for Duplicates
           </button>
@@ -665,7 +665,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
                             type="checkbox"
                             checked={removals.has(bm.id)}
                             onChange={() => toggleRemoval(bm.id)}
-                            className="h-3.5 w-3.5 shrink-0 accent-indigo-500"
+                            className="h-3.5 w-3.5 shrink-0 accent-brand-400"
                           />
                         )}
                         <div className="min-w-0 flex-1">
@@ -697,7 +697,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
                 <button
                   onClick={handleApply}
                   disabled={removals.size === 0}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-40"
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-coal hover:bg-red-500 disabled:opacity-40"
                 >
                   Remove {removals.size} Duplicate
                   {removals.size !== 1 ? "s" : ""}
@@ -791,7 +791,7 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
           </p>
           <button
             onClick={handleCleanup}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
           >
             Clean Up Empty Folders
           </button>
@@ -828,6 +828,6 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-indigo-500" />
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-brand-400" />
   );
 }

@@ -23,7 +23,7 @@ export function App() {
             onClick={() => setPage(item.id)}
             className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
               page === item.id
-                ? "border-b-2 border-indigo-500 text-indigo-400"
+                ? "border-b-2 border-brand-400 text-brand-400"
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >

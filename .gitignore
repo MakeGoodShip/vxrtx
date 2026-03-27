@@ -1,4 +1,31 @@
 node_modules/
 dist/
+.turbo/
 *.local
 .DS_Store
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Astro generated types
+.astro/
+
+# Build / cache
+*.tsbuildinfo
+.cache/
+coverage/
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+
+# AI agent configs
+.claude/
+.serena/
+
+# Wrong lockfile (pnpm project)
+package-lock.json

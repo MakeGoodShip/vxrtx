@@ -5,6 +5,7 @@ import type {
   BookmarkOrganizationResult,
   LocationSuggestion,
   AIModelProvider,
+  GroupingGranularity,
 } from "@/shared/types";
 import {
   buildTabGroupingPrompt,
@@ -29,18 +30,19 @@ export class RelaxedProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
     const input = tabsToRelaxedInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: false });
+    const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity });
     const response = await this.complete(prompt);
     return parseTabOrganization(response);
   }
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
+    granularity?: GroupingGranularity,
   ): Promise<BookmarkOrganizationResult> {
     const input = bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false });
+    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
     const response = await this.complete(prompt);
     const parsed = parseBookmarkOrganization(response);
     return {

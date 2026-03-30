@@ -22,6 +22,16 @@ export const DEFAULT_SETTINGS: Settings = {
   staleDaysThreshold: 7,
 };
 
+export type GroupingGranularity = 1 | 2 | 3 | 4 | 5;
+
+export const GRANULARITY_LABELS: Record<GroupingGranularity, string> = {
+  1: "Broad",
+  2: "Relaxed",
+  3: "Balanced",
+  4: "Detailed",
+  5: "Fine-grained",
+};
+
 export type TabGroupColor =
   | "grey"
   | "blue"

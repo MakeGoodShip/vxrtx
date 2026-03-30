@@ -4,6 +4,7 @@ import type {
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
+  GroupingGranularity,
 } from "@/shared/types";
 import {
   buildTabGroupingPrompt,
@@ -34,12 +35,13 @@ export class OpenRouterProvider implements AIProvider {
     private includeUrls: boolean,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
     const input = this.includeUrls
       ? tabsToYoloInput(tabs)
       : tabsToRelaxedInput(tabs);
     const prompt = buildTabGroupingPrompt(input, {
       includeUrls: this.includeUrls,
+      granularity,
     });
     const response = await this.complete(prompt);
     return parseTabOrganization(response);
@@ -47,12 +49,14 @@ export class OpenRouterProvider implements AIProvider {
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
+    granularity?: GroupingGranularity,
   ): Promise<BookmarkOrganizationResult> {
     const input = this.includeUrls
       ? bookmarksToYoloInput(bookmarks)
       : bookmarksToRelaxedInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, {
       includeUrls: this.includeUrls,
+      granularity,
     });
     const response = await this.complete(prompt);
     const parsed = parseBookmarkOrganization(response);

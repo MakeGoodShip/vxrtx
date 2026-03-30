@@ -28,6 +28,13 @@ export interface MessageResponse<T = unknown> {
   error?: string;
 }
 
+export interface ProgressUpdate {
+  type: "progress";
+  current: number;
+  total: number;
+  message: string;
+}
+
 export function sendMessage<TReq = unknown, TRes = unknown>(
   action: MessageAction,
   payload?: TReq,
@@ -35,5 +42,43 @@ export function sendMessage<TReq = unknown, TRes = unknown>(
   return chrome.runtime.sendMessage<Message<TReq>, MessageResponse<TRes>>({
     action,
     payload,
+  });
+}
+
+/**
+ * Send a message over a port for long-running operations.
+ * Avoids the MV3 message channel timeout and enables progress updates.
+ */
+export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
+  action: MessageAction,
+  payload?: TReq,
+  onProgress?: (update: ProgressUpdate) => void,
+): Promise<MessageResponse<TRes>> {
+  return new Promise((resolve) => {
+    const port = chrome.runtime.connect({ name: "long-running" });
+
+    port.onMessage.addListener(
+      (msg: MessageResponse<TRes> | ProgressUpdate) => {
+        if ("type" in msg && msg.type === "progress") {
+          onProgress?.(msg as ProgressUpdate);
+        } else {
+          resolve(msg as MessageResponse<TRes>);
+          port.disconnect();
+        }
+      },
+    );
+
+    port.onDisconnect.addListener(() => {
+      if (chrome.runtime.lastError) {
+        resolve({
+          success: false,
+          error:
+            chrome.runtime.lastError.message ??
+            "Connection lost to background worker",
+        } as MessageResponse<TRes>);
+      }
+    });
+
+    port.postMessage({ action, payload });
   });
 }

@@ -1,4 +1,4 @@
-import type { Message, MessageResponse } from "@/shared/messaging";
+import type { Message, MessageResponse, ProgressUpdate } from "@/shared/messaging";
 import type {
   Settings,
   TabInfo,
@@ -58,7 +58,7 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch(console.error);
 
-// Message handler
+// Message handler for quick operations
 chrome.runtime.onMessage.addListener(
   (
     message: Message,
@@ -72,6 +72,48 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+// Port handler for long-running operations with progress
+type ProgressSender = (current: number, total: number, msg: string) => void;
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "long-running") return;
+
+  port.onMessage.addListener(async (message: Message) => {
+    const sendProgress: ProgressSender = (current, total, msg) => {
+      try {
+        port.postMessage({
+          type: "progress",
+          current,
+          total,
+          message: msg,
+        } satisfies ProgressUpdate);
+      } catch {
+        // Port may have disconnected
+      }
+    };
+
+    try {
+      let result: MessageResponse;
+      const payload = message.payload as Record<string, unknown> | undefined;
+      const granularity = payload?.granularity as number | undefined;
+
+      switch (message.action) {
+        case "organize-tabs":
+          result = await handleOrganizeTabs(granularity, sendProgress);
+          break;
+        case "organize-bookmarks":
+          result = await handleOrganizeBookmarks(granularity, sendProgress);
+          break;
+        default:
+          result = await handleMessage(message);
+      }
+      try { port.postMessage(result); } catch { /* disconnected */ }
+    } catch (err) {
+      try { port.postMessage({ success: false, error: String(err) }); } catch { /* disconnected */ }
+    }
+  });
+});
+
 async function handleMessage(message: Message): Promise<MessageResponse> {
   switch (message.action) {
     case "get-settings":
@@ -82,7 +124,9 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       return { success: true };
 
     case "organize-tabs":
-      return await handleOrganizeTabs();
+      return await handleOrganizeTabs(
+        (message.payload as { granularity?: number })?.granularity,
+      );
 
     case "apply-tab-suggestions":
       return await handleApplyTabSuggestions(
@@ -93,7 +137,9 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       return await handleUndoTabChanges();
 
     case "organize-bookmarks":
-      return await handleOrganizeBookmarks();
+      return await handleOrganizeBookmarks(
+        (message.payload as { granularity?: number })?.granularity,
+      );
 
     case "find-duplicate-bookmarks":
       return await handleFindDuplicateBookmarks();
@@ -147,11 +193,15 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
 // ─── Tab Organization ───────────────────────────────────────────────
 
-async function handleOrganizeTabs(): Promise<
-  MessageResponse<TabOrganizationResult>
-> {
+async function handleOrganizeTabs(
+  granularity?: number,
+  sendProgress?: ProgressSender,
+): Promise<MessageResponse<TabOrganizationResult>> {
   const settings = await getSettings();
   const allTabs = await queryAllTabs();
+  const g = (granularity ?? 3) as import("@/shared/types").GroupingGranularity;
+
+  sendProgress?.(0, 1, `Analyzing ${allTabs.length} tabs...`);
 
   const snapshot: TabSnapshot[] = allTabs.map((t) => ({
     id: t.id,
@@ -170,11 +220,11 @@ async function handleOrganizeTabs(): Promise<
   let result: TabOrganizationResult;
 
   if (settings.aiTier === "secure") {
-    result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
+    result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
       const provider = await getAIProvider();
-      const aiResult = await provider.organizeTabs(tabs);
+      const aiResult = await provider.organizeTabs(tabs, g);
       result = {
         tabs,
         groups: aiResult.groups,
@@ -184,7 +234,7 @@ async function handleOrganizeTabs(): Promise<
       };
     } catch (err) {
       console.warn("AI tab organization failed:", err);
-      result = ruleBasedOrganize(tabs, settings.staleDaysThreshold);
+      result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
       result.reasoning = `AI unavailable (${err instanceof Error ? err.message : String(err)}). ${result.reasoning}`;
     }
   }
@@ -303,9 +353,13 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
 function ruleBasedOrganize(
   tabs: TabInfo[],
   staleDays: number,
+  granularity: import("@/shared/types").GroupingGranularity = 3,
 ): TabOrganizationResult {
   const domainMap = groupByDomain(tabs);
-  const groups = domainToTabGroups(domainMap);
+  // Lower granularity = larger minGroupSize (fewer groups)
+  // 1=Broad → min 4, 2→min 3, 3=Balanced → min 2, 4→min 2, 5=Fine → min 1
+  const minGroupSize = granularity <= 1 ? 4 : granularity <= 2 ? 3 : granularity <= 3 ? 2 : 1;
+  const groups = domainToTabGroups(domainMap, minGroupSize);
   const duplicates = findDuplicatesByUrl(tabs);
   const stale = findStaleTabs(tabs, staleDays);
 
@@ -448,10 +502,12 @@ interface BookmarkApplyPayload {
   cleanupEmptyFolders?: boolean;
 }
 
-async function handleOrganizeBookmarks(): Promise<
-  MessageResponse<BookmarkOrganizeResponse>
-> {
+async function handleOrganizeBookmarks(
+  granularity?: number,
+  sendProgress?: ProgressSender,
+): Promise<MessageResponse<BookmarkOrganizeResponse>> {
   const settings = await getSettings();
+  const g = (granularity ?? 3) as import("@/shared/types").GroupingGranularity;
   const tree = await getBookmarkTree();
   const allBookmarks = flattenBookmarks(tree);
   const folders = extractFolders(tree);
@@ -466,6 +522,8 @@ async function handleOrganizeBookmarks(): Promise<
   const lockedFolders = await getLockedBookmarkFolders();
   const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
   const bookmarks = allBookmarks.filter((b) => !lockedBookmarkIds.has(b.id));
+
+  sendProgress?.(0, 1, `Analyzing ${bookmarks.length} bookmarks...`);
 
   if (settings.aiTier === "secure") {
     // Rule-based: no restructuring, just return current state
@@ -488,7 +546,7 @@ async function handleOrganizeBookmarks(): Promise<
 
   try {
     const provider = await getAIProvider();
-    const aiResult = await provider.organizeBookmarks(bookmarks);
+    const aiResult = await provider.organizeBookmarks(bookmarks, g);
     return {
       success: true,
       data: { bookmarks, folders, result: aiResult },

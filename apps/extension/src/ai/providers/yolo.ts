@@ -5,6 +5,7 @@ import type {
   BookmarkOrganizationResult,
   LocationSuggestion,
   AIModelProvider,
+  GroupingGranularity,
 } from "@/shared/types";
 import {
   buildTabGroupingPrompt,
@@ -24,18 +25,19 @@ export class YoloProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
     const input = tabsToYoloInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: true });
+    const prompt = buildTabGroupingPrompt(input, { includeUrls: true, granularity });
     const response = await this.complete(prompt);
     return parseTabOrganization(response);
   }
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
+    granularity?: GroupingGranularity,
   ): Promise<BookmarkOrganizationResult> {
     const input = bookmarksToYoloInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: true });
+    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: true, granularity });
     const response = await this.complete(prompt);
     const parsed = parseBookmarkOrganization(response);
     return {

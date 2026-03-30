@@ -1,14 +1,37 @@
-import { useState, useCallback, useEffect } from "react";
-import { sendMessage } from "@/shared/messaging";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { sendMessage, sendLongRunningMessage, type ProgressUpdate } from "@/shared/messaging";
 import type {
   TabOrganizationResult,
   TabGroupSuggestion,
   TabGroupColor,
   TabInfo,
   LockedTabGroup,
+  GroupingGranularity,
 } from "@/shared/types";
+import { GranularitySlider } from "../components/GranularitySlider";
 
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
+
+function useElapsedTimer(running: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(0);
+  useEffect(() => {
+    if (!running) { setElapsed(0); return; }
+    startRef.current = Date.now();
+    setElapsed(0);
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [running]);
+  return elapsed;
+}
+
+function formatElapsed(s: number): string {
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
 
 interface EditableGroup extends TabGroupSuggestion {
   enabled: boolean;
@@ -47,6 +70,9 @@ export function TabOrganizer() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
+  const [granularity, setGranularity] = useState<GroupingGranularity>(3);
+  const [progress, setProgress] = useState<ProgressUpdate | null>(null);
+  const elapsed = useElapsedTimer(status === "loading" || status === "applying");
 
   // Lock state
   const [chromeGroups, setChromeGroups] = useState<ChromeGroup[]>([]);
@@ -57,6 +83,40 @@ export function TabOrganizer() {
   useEffect(() => {
     if (status === "idle") loadGroupsAndLocks();
   }, [status]);
+
+  // Persist preview state so it survives side panel re-creation on tab switch
+  useEffect(() => {
+    if (status === "preview" && preview) {
+      const serializable = {
+        ...preview,
+        staleEnabled: Array.from(preview.staleEnabled),
+        duplicatesEnabled: Array.from(preview.duplicatesEnabled),
+        tabs: Array.from(preview.tabs.entries()),
+      };
+      chrome.storage.session.set({ vxrtx_tab_preview: serializable });
+    } else if (status === "idle" || status === "done") {
+      chrome.storage.session.remove("vxrtx_tab_preview");
+    }
+  }, [status, preview]);
+
+  // Restore preview on mount
+  useEffect(() => {
+    chrome.storage.session.get("vxrtx_tab_preview").then((data) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const saved = data.vxrtx_tab_preview as any;
+      if (saved?.groups && status === "idle") {
+        setPreview({
+          groups: saved.groups,
+          reasoning: saved.reasoning,
+          allDuplicates: saved.allDuplicates,
+          staleEnabled: new Set(saved.staleEnabled),
+          duplicatesEnabled: new Set(saved.duplicatesEnabled),
+          tabs: new Map(saved.tabs),
+        });
+        setStatus("preview");
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadGroupsAndLocks() {
     try {
@@ -135,10 +195,12 @@ export function TabOrganizer() {
   async function handleOrganize() {
     setStatus("loading");
     setError(null);
+    setProgress(null);
     try {
-      const response = await sendMessage<void, TabOrganizationResult>(
-        "organize-tabs",
-      );
+      const response = await sendLongRunningMessage<
+        { granularity: GroupingGranularity },
+        TabOrganizationResult
+      >("organize-tabs", { granularity }, setProgress);
       if (response.success && response.data) {
         const data = response.data;
         const tabMap = new Map(data.tabs.map((t) => [t.id, t]));
@@ -321,7 +383,18 @@ export function TabOrganizer() {
         </div>
       )}
 
-      {/* Idle state: show current groups with lock toggles */}
+      {/* Idle state: granularity slider first, then groups with lock toggles */}
+      {status === "idle" && !error && (
+        <div className="space-y-3">
+          <GranularitySlider value={granularity} onChange={setGranularity} />
+          <p className="text-xs text-zinc-600">
+            {chromeGroups.length > 0
+              ? "Locked groups are excluded from all organization."
+              : 'Click "Organize Tabs" to analyze and group your open tabs.'}
+          </p>
+        </div>
+      )}
+
       {status === "idle" && chromeGroups.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-zinc-300">
@@ -403,23 +476,36 @@ export function TabOrganizer() {
         </section>
       )}
 
-      {status === "idle" && !error && chromeGroups.length === 0 && (
-        <p className="text-sm text-zinc-500">
-          Click "Organize Tabs" to analyze and group your open tabs.
-        </p>
-      )}
-
-      {status === "idle" && !error && chromeGroups.length > 0 && (
-        <p className="text-xs text-zinc-600">
-          Locked groups are excluded from all organization. Click "Organize
-          Tabs" to analyze unlocked tabs.
-        </p>
-      )}
-
-      {status === "loading" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Analyzing tabs...
+      {(status === "loading" || status === "applying") && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <Spinner />
+            <span className="flex-1">
+              {status === "applying"
+                ? "Applying changes..."
+                : progress?.message ?? "Analyzing tabs..."}
+            </span>
+            {elapsed > 0 && (
+              <span className="shrink-0 text-xs text-zinc-600">
+                {formatElapsed(elapsed)}
+              </span>
+            )}
+          </div>
+          {progress && progress.total > 1 && (
+            <div className="space-y-1">
+              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-brand-400 transition-all duration-300"
+                  style={{
+                    width: `${Math.round((progress.current / progress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-zinc-600">
+                Batch {progress.current} of {progress.total}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -428,6 +514,21 @@ export function TabOrganizer() {
           {preview.reasoning && (
             <p className="text-xs text-zinc-500">{preview.reasoning}</p>
           )}
+
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <GranularitySlider
+                value={granularity}
+                onChange={setGranularity}
+              />
+            </div>
+            <button
+              onClick={handleOrganize}
+              className="shrink-0 rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+            >
+              Re-analyze
+            </button>
+          </div>
 
           {/* Groups */}
           {preview.groups.length > 0 && (
@@ -550,12 +651,7 @@ export function TabOrganizer() {
         </div>
       )}
 
-      {status === "applying" && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <Spinner />
-          Applying changes...
-        </div>
-      )}
+      {/* applying state handled in the loading/applying block above */}
 
       {status === "done" && (
         <div className="space-y-3">

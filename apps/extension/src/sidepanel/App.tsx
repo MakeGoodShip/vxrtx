@@ -56,15 +56,10 @@ export function App() {
   return (
     <div className="flex min-h-screen flex-col bg-coal text-zinc-100">
       {/* Branded header */}
-      <header className="flex items-center justify-between border-b border-zinc-800/60 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <div className="flex h-5 w-5 items-center justify-center rounded-md bg-brand-500/15">
-            <div className="h-2 w-2 rounded-full bg-brand-400 shadow-[0_0_8px_var(--color-brand-400)]" />
-          </div>
-          <span className="text-xs font-semibold tracking-widest text-zinc-400 uppercase">
-            vxrtx
-          </span>
-        </div>
+      <header className="flex items-center border-b border-zinc-800/60 px-4 py-2">
+        <svg viewBox="0 0 1072 500" fill="none" className="h-4 w-auto text-brand-400" aria-label="vxrtx">
+          <path clipRule="evenodd" d="m498.274 18.4204.507.1607 168.762-.032 105.642 181.7759s61.647-129.8647 113.814-181.5637c52.167-51.6991 184.431 19.8461 184.431 19.8461s-10.01 6.6281-24.64 31.7405c-11.75 20.1649-13.86 42.4441-13.86 42.4441s-65.359-161.2145-141.391-85.8651c-76.032 75.3491-108.862 189.7291-108.862 189.7291l156.489 269.249h-118.706c-5.596-9.624-15.946-29.507-29.623-55.782l-.098-.187-.223-.429c-17.947-34.476-41.575-79.866-67.771-127.665-.672-1.226-1.349-2.453-2.026-3.682l-.137-.248-1.325-2.404-2.235-4.067s-56.159 121.199-120.973 171.945c-83.112 65.073-217.216 23.577-217.216 23.577l14.83-54.967s75.161 89.584 164.585 49.429c89.423-40.155 155.275-196.297 155.275-196.297-73.819-133.144-117.474-284.990224-206.093-253.2903-45.602 101.1093-126.885 360.9643-156.67 454.7933l-.54-.171-.136.501h-116.565c-56.78-140.252-124.391-291.081-204.3806-420.1647-9.5719-15.4464-31.49272-34.4098-28.931892-40.0816 4.846182-10.7183 49.398492-8.1656 145.338492-8.1656 0 0 104.773 251.6579 133.844 344.4889 29.071 92.83 83.527 49.744 97.43 15.834l32.885-88.156s20.593-58.175 68.431-208.8607l12.517-39.4281z" fill="currentColor" fillRule="evenodd"/>
+        </svg>
       </header>
 
       {/* Navigation */}

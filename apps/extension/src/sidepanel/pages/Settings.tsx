@@ -7,23 +7,26 @@ import type {
 } from "@/shared/types";
 import { DEFAULT_SETTINGS } from "@/shared/types";
 
-const TIER_INFO: { id: AITier; label: string; description: string }[] = [
+const TIER_INFO: { id: AITier; label: string; description: string; activeClass: string }[] = [
   {
     id: "secure",
     label: "Secure",
     description: "Fully local AI. Nothing leaves your machine.",
+    activeClass: "border-brand-400 bg-brand-950/30",
   },
   {
     id: "relaxed",
     label: "Relaxed",
     description:
       "Cloud AI with minimal data exposure. Titles only, no URLs.",
+    activeClass: "border-[#5b4db8] bg-[#2d226d]/20",
   },
   {
     id: "yolo",
     label: "YOLO",
     description:
       "Full context sent to AI for best results. Titles, URLs, timestamps.",
+    activeClass: "border-[#f433ab]/60 bg-[#f433ab]/8",
   },
 ];
 
@@ -104,7 +107,7 @@ export function Settings() {
               onClick={() => save({ aiTier: tier.id })}
               className={`w-full rounded-lg border p-3 text-left transition-colors ${
                 settings.aiTier === tier.id
-                  ? "border-brand-400 bg-brand-950/30"
+                  ? tier.activeClass
                   : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
               }`}
             >

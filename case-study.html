@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vxrtx — Product Design Case Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --brand: #20fc8f;
+    --brand-dim: #0acd72;
+    --brand-glow: rgba(32, 252, 143, 0.12);
+    --coal: #111313;
+    --surface: #161818;
+    --surface-raised: #1c1e1e;
+    --zinc-50: #fafafa;
+    --zinc-100: #f4f4f5;
+    --zinc-200: #e4e4e7;
+    --zinc-300: #d4d4d8;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --zinc-600: #52525b;
+    --zinc-700: #3f3f46;
+    --zinc-800: #27272a;
+    --zinc-900: #18181b;
+    --font: 'Outfit', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font);
+    background: var(--coal);
+    color: var(--zinc-300);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Noise overlay */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.018;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px;
+  }
+
+  ::selection {
+    background: var(--brand);
+    color: var(--coal);
+  }
+
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ─── Layout ─── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 720px; margin: 0 auto; }
+
+  section {
+    padding: 100px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* ─── Typography ─── */
+  h1, h2, h3, h4 {
+    font-family: var(--font);
+    color: var(--zinc-100);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  h1 { font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 800; }
+  h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; margin-bottom: 16px; }
+  h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 8px; }
+
+  p { margin-bottom: 16px; }
+  p:last-child { margin-bottom: 0; }
+
+  .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand);
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .lead {
+    font-size: 1.125rem;
+    color: var(--zinc-400);
+    line-height: 1.8;
+  }
+
+  .text-dim { color: var(--zinc-500); }
+  .text-brand { color: var(--brand); }
+
+  /* ─── Hero ─── */
+  .hero {
+    padding: 120px 0 100px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--brand-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero .logo-mark {
+    display: inline-block;
+    height: 36px;
+    margin-bottom: 32px;
+    color: var(--brand);
+    filter: drop-shadow(0 0 20px rgba(32, 252, 143, 0.3));
+  }
+
+  .hero .logo-mark svg {
+    height: 100%;
+    width: auto;
+  }
+
+  .hero .splash {
+    max-width: 640px;
+    width: 100%;
+    margin: 48px auto 0;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 60px rgba(32, 252, 143, 0.06);
+  }
+
+  .hero .splash img {
+    width: 100%;
+    display: block;
+  }
+
+  .hero h1 {
+    margin-bottom: 20px;
+  }
+
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--zinc-100) 0%, var(--brand) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero .subtitle {
+    font-size: 1.25rem;
+    color: var(--zinc-500);
+    max-width: 520px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+  }
+
+  .meta-row {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    text-align: center;
+  }
+
+  .meta-item .value {
+    font-family: var(--mono);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--zinc-100);
+  }
+
+  .meta-item .meta-label {
+    font-size: 12px;
+    color: var(--zinc-600);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ─── Image Grid ─── */
+  .image-grid {
+    display: grid;
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .image-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .image-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .image-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .image-card {
+    background: var(--surface);
+    border: 1px solid var(--zinc-800);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .image-card:hover {
+    border-color: var(--zinc-700);
+    transform: translateY(-2px);
+  }
+
+  .image-card img {
+    width: 100%;
+    display: block;
+  }
+
+  .image-card .caption {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--zinc-500);
+    border-top: 1px solid var(--zinc-800);
+  }
+
+  .image-card .caption strong {
+    color: var(--zinc-300);
+    font-weight: 500;
+  }
+
+  /* Single hero image */
+  .image-hero {
+    background: var(--surface);
+    border: 1px solid var(--zinc-800);
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 40px 0;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+  }
+
+  .image-hero img {
+    width: 100%;
+    display: block;
+  }
+
+  /* Before/After */
+  .before-after {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 40px 0;
+    align-items: start;
+  }
+
+  .before-after .ba-col { text-align: center; }
+
+  .before-after .ba-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .before-after .ba-label.before { color: var(--zinc-600); }
+  .before-after .ba-label.after { color: var(--brand); }
+
+  .before-after .image-card { max-width: 300px; margin: 0 auto; }
+
+  /* ─── Timeline ─── */
+  .timeline {
+    position: relative;
+    padding-left: 32px;
+  }
+
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--brand), var(--zinc-800), var(--zinc-800));
+  }
+
+  .timeline-item {
+    position: relative;
+    padding-bottom: 32px;
+  }
+
+  .timeline-item:last-child { padding-bottom: 0; }
+
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -28px;
+    top: 8px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--zinc-800);
+    border: 2px solid var(--zinc-700);
+  }
+
+  .timeline-item.highlight::before {
+    background: var(--brand);
+    border-color: var(--brand);
+    box-shadow: 0 0 8px rgba(32, 252, 143, 0.4);
+  }
+
+  .timeline-date {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--zinc-600);
+    margin-bottom: 4px;
+  }
+
+  .timeline-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--zinc-200);
+    margin-bottom: 4px;
+  }
+
+  .timeline-desc {
+    font-size: 13px;
+    color: var(--zinc-500);
+    line-height: 1.5;
+  }
+
+  .timeline-hash {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--zinc-700);
+  }
+
+  /* ─── Feature Cards ─── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 40px 0;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--zinc-800);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+
+  .feature-card:hover { border-color: var(--zinc-700); }
+
+  .feature-card h4 {
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .feature-card p {
+    font-size: 13px;
+    color: var(--zinc-500);
+    line-height: 1.5;
+  }
+
+  .feature-card .icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--brand-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    color: var(--brand);
+  }
+
+  /* ─── Color Swatches ─── */
+  .color-evolution {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 32px 0;
+    flex-wrap: wrap;
+  }
+
+  .color-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--zinc-800);
+    border-radius: 8px;
+    padding: 8px 16px 8px 8px;
+  }
+
+  .color-chip .swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  .color-chip .color-info {
+    font-size: 12px;
+  }
+
+  .color-chip .color-name {
+    color: var(--zinc-300);
+    font-weight: 500;
+  }
+
+  .color-chip .color-hex {
+    font-family: var(--mono);
+    color: var(--zinc-600);
+    font-size: 10px;
+  }
+
+  .arrow-between {
+    color: var(--zinc-700);
+    font-size: 18px;
+  }
+
+  /* ─── Stat Bar ─── */
+  .stat-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--zinc-800);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 40px 0;
+  }
+
+  .stat-cell {
+    background: var(--surface);
+    padding: 24px;
+    text-align: center;
+  }
+
+  .stat-cell .stat-value {
+    font-family: var(--mono);
+    font-size: 1.75rem;
+    font-weight: 500;
+    color: var(--zinc-100);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-cell .stat-label {
+    font-size: 11px;
+    color: var(--zinc-600);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ─── Callout ─── */
+  .callout {
+    background: var(--brand-glow);
+    border: 1px solid rgba(32, 252, 143, 0.1);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin: 40px 0;
+  }
+
+  .callout p {
+    color: var(--zinc-300);
+    font-size: 14px;
+  }
+
+  /* ─── Tech Stack ─── */
+  .tech-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 24px 0;
+  }
+
+  .tech-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--zinc-800);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: var(--zinc-400);
+  }
+
+  /* ─── Footer ─── */
+  footer {
+    padding: 60px 0;
+    text-align: center;
+    color: var(--zinc-700);
+    font-size: 13px;
+  }
+
+  footer .brand-name {
+    font-weight: 700;
+    color: var(--zinc-500);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--zinc-800); border-radius: 999px; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 768px) {
+    .image-grid.cols-3, .image-grid.cols-4 { grid-template-columns: 1fr 1fr; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .before-after { grid-template-columns: 1fr; }
+    .stat-bar { grid-template-columns: 1fr 1fr; }
+    .meta-row { gap: 32px; }
+    section { padding: 64px 0; }
+  }
+
+  @media (max-width: 480px) {
+    .image-grid.cols-2, .image-grid.cols-3, .image-grid.cols-4 { grid-template-columns: 1fr; }
+    .stat-bar { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ HERO ═══ -->
+<div class="hero">
+  <div class="container">
+    <div class="logo-mark">
+      <svg viewBox="0 0 1072 500" fill="none">
+        <path clip-rule="evenodd" d="m498.274 18.4204.507.1607 168.762-.032 105.642 181.7759s61.647-129.8647 113.814-181.5637c52.167-51.6991 184.431 19.8461 184.431 19.8461s-10.01 6.6281-24.64 31.7405c-11.75 20.1649-13.86 42.4441-13.86 42.4441s-65.359-161.2145-141.391-85.8651c-76.032 75.3491-108.862 189.7291-108.862 189.7291l156.489 269.249h-118.706c-5.596-9.624-15.946-29.507-29.623-55.782l-.098-.187-.223-.429c-17.947-34.476-41.575-79.866-67.771-127.665-.672-1.226-1.349-2.453-2.026-3.682l-.137-.248-1.325-2.404-2.235-4.067s-56.159 121.199-120.973 171.945c-83.112 65.073-217.216 23.577-217.216 23.577l14.83-54.967s75.161 89.584 164.585 49.429c89.423-40.155 155.275-196.297 155.275-196.297-73.819-133.144-117.474-284.990224-206.093-253.2903-45.602 101.1093-126.885 360.9643-156.67 454.7933l-.54-.171-.136.501h-116.565c-56.78-140.252-124.391-291.081-204.3806-420.1647-9.5719-15.4464-31.49272-34.4098-28.931892-40.0816 4.846182-10.7183 49.398492-8.1656 145.338492-8.1656 0 0 104.773 251.6579 133.844 344.4889 29.071 92.83 83.527 49.744 97.43 15.834l32.885-88.156s20.593-58.175 68.431-208.8607l12.517-39.4281z" fill="currentColor" fill-rule="evenodd"/>
+      </svg>
+    </div>
+    <h1>Designing <span>vxrtx</span></h1>
+    <p class="subtitle">
+      An ongoing product design case study on an AI-powered Chrome extension
+      that brings order to browser chaos — tracking the journey from first commit through active development.
+    </p>
+    <div class="meta-row">
+      <div class="meta-item">
+        <div class="value">4</div>
+        <div class="meta-label">Days</div>
+      </div>
+      <div class="meta-item">
+        <div class="value">12</div>
+        <div class="meta-label">Feature Commits</div>
+      </div>
+      <div class="meta-item">
+        <div class="value">4</div>
+        <div class="meta-label">Core Screens</div>
+      </div>
+      <div class="meta-item">
+        <div class="value">3</div>
+        <div class="meta-label">Brand Iterations</div>
+      </div>
+    </div>
+
+    <div class="splash">
+      <img src=".screens/brand-splash.png" alt="vxrtx brand splash — stylized vx lettermark on circuit pattern background" loading="lazy">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ OVERVIEW ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Overview</span>
+    <h2>What is vxrtx?</h2>
+    <p class="lead">
+      vxrtx is a Chrome side panel extension that uses AI to organize tabs and bookmarks.
+      It detects stale tabs, finds duplicates, suggests intelligent groupings, and lets users
+      lock folders and groups they want to protect from reorganization.
+      The project is under active development, with the design and feature set continuing to evolve.
+    </p>
+    <p>
+      The extension supports three AI privacy tiers — from fully local inference to full cloud context —
+      and integrates with OpenRouter, Claude, and OpenAI as providers. A snapshot system provides
+      safety nets with persistent history, import/export, and granular restore.
+      This case study captures the design journey so far, documenting decisions as they're made.
+    </p>
+
+    <div class="stat-bar">
+      <div class="stat-cell">
+        <div class="stat-value">4</div>
+        <div class="stat-label">Screens</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">7</div>
+        <div class="stat-label">Workflows</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">3</div>
+        <div class="stat-label">AI Tiers</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">24</div>
+        <div class="stat-label">Message Types</div>
+      </div>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="icon">
+          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="12" height="9.5" rx="1.5"/><path d="M1.5 5.5h12"/><path d="M5 3v2.5"/></svg>
+        </div>
+        <h4>Tab Organizer</h4>
+        <p>AI-driven grouping with adjustable granularity, stale tab detection, duplicate identification, and group locking.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">
+          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2h8a1 1 0 011 1v10.5l-5-3-5 3V3a1 1 0 011-1z"/></svg>
+        </div>
+        <h4>Bookmark Organizer</h4>
+        <p>Four modes: full reorganize, placement suggestions, duplicate cleanup, and empty folder removal.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">
+          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="11" height="11" rx="1.5"/><circle cx="7.5" cy="7.5" r="2.5"/></svg>
+        </div>
+        <h4>Snapshots</h4>
+        <p>Persistent session backups with manual and automatic creation, import/export, and selective restore.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">
+          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="7.5" r="2"/><path d="M7.5 1.5v1.5M7.5 12v1.5M1.5 7.5H3M12 7.5h1.5M3.3 3.3l1 1M10.7 10.7l1 1M3.3 11.7l1-1M10.7 3.3l1-1"/></svg>
+        </div>
+        <h4>Settings</h4>
+        <p>Privacy-first AI config with three tiers, multi-provider support, and per-model selection.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ TECH ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Stack</span>
+    <h2>Technical Foundation</h2>
+    <p>
+      Built as a Chrome Manifest V3 side panel extension using a modern React stack.
+      The monorepo houses the extension, a documentation site, and shared branding assets.
+    </p>
+    <div class="tech-pills">
+      <span class="tech-pill">React 19</span>
+      <span class="tech-pill">TypeScript 6</span>
+      <span class="tech-pill">Tailwind CSS 4</span>
+      <span class="tech-pill">Vite 8</span>
+      <span class="tech-pill">Chrome MV3</span>
+      <span class="tech-pill">Side Panel API</span>
+      <span class="tech-pill">pnpm + Turborepo</span>
+      <span class="tech-pill">Zod</span>
+    </div>
+    <p class="text-dim" style="font-size: 13px;">
+      Architecture uses a typed message system between the side panel UI and background service worker,
+      with port-based long-running communication for progress updates during AI inference.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ TIMELINE ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Development</span>
+    <h2>Build Timeline</h2>
+    <p>
+      The initial build sprint covered four days, progressing from zero to a functional
+      extension across 12 meaningful commits. Development continues beyond what's captured here —
+      this timeline reflects the foundational phase.
+    </p>
+
+    <div class="timeline" style="margin-top: 40px;">
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 26, 2026 &middot; 1:46 PM</div>
+        <div class="timeline-title">Phase 2 — Initial UI Scaffold</div>
+        <div class="timeline-desc">Three-tab navigation, Tab Organizer with "Organize Tabs" CTA, Bookmarks placeholder, and basic Settings. Dark theme with purple brand accent.</div>
+        <div class="timeline-hash">33c7dd4</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mar 26 &middot; 1:52 PM</div>
+        <div class="timeline-title">Phase 3 — AI Backbone</div>
+        <div class="timeline-desc">AI provider system with local, relaxed, and YOLO inference tiers. Tab and bookmark grouping prompt engineering. No UI changes.</div>
+        <div class="timeline-hash">57f2fc3</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 26 &middot; 1:56 PM</div>
+        <div class="timeline-title">Settings Overhaul — Provider Selection</div>
+        <div class="timeline-desc">Full Settings rewrite: privacy tier selection, OpenRouter/Claude/OpenAI provider cards, API key inputs, popular model picker, custom model ID support.</div>
+        <div class="timeline-hash">1a8162d</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 26 &middot; 2:14 PM</div>
+        <div class="timeline-title">Bookmark Organizer — Four Modes</div>
+        <div class="timeline-desc">Full bookmark management: "Reorganize All" with AI suggestions, "Where Should This Go?" for single placement, "Find Duplicates" scanner. Mode-based navigation with back buttons.</div>
+        <div class="timeline-hash">013477c</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mar 26 &middot; 2:26 PM</div>
+        <div class="timeline-title">Empty Folder Cleanup</div>
+        <div class="timeline-desc">Fourth bookmark mode: multi-pass empty folder detection and removal.</div>
+        <div class="timeline-hash">64e39d4</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mar 27 &middot; 4:52 AM</div>
+        <div class="timeline-title">Monorepo Restructure</div>
+        <div class="timeline-desc">Migrated to pnpm + Turborepo monorepo with apps/extension, apps/docs, apps/web, and shared packages. No UI changes.</div>
+        <div class="timeline-hash">d87184c</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 27 &middot; 5:39 AM</div>
+        <div class="timeline-title">Tab Group Locking + Brand Shift</div>
+        <div class="timeline-desc">Lock/unlock toggles for Chrome tab groups with dormant lock tracking. Brand color shift from purple to cyan — first major visual evolution.</div>
+        <div class="timeline-hash">602a2f1</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mar 27 &middot; 5:49 AM</div>
+        <div class="timeline-title">Bookmark Folder Locking</div>
+        <div class="timeline-desc">Lock/unlock toggles for bookmark folders displayed below the mode menu, with folder path labels.</div>
+        <div class="timeline-hash">7f90050</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 30 &middot; 8:52 AM</div>
+        <div class="timeline-title">Granularity Slider</div>
+        <div class="timeline-desc">Reusable GranularitySlider component (Broad → Fine, 5 levels) added to both organizers. Long-running message support with progress bars and elapsed timers.</div>
+        <div class="timeline-hash">483b28d</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mar 30 &middot; 9:13 AM</div>
+        <div class="timeline-title">Brand Refresh — Green Direction</div>
+        <div class="timeline-desc">Brand color shift from cyan to green (#0acd72). New icon assets. Aligned with the new product direction.</div>
+        <div class="timeline-hash">64b74e3</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 30 &middot; 9:54 AM</div>
+        <div class="timeline-title">Snapshot Manager</div>
+        <div class="timeline-desc">New fourth tab: Snapshots. Persistent history, manual creation with label/type, expand/collapse cards, rename, selective restore (tabs/bookmarks/both), import/export, batch export. Folder filter added to Bookmarks.</div>
+        <div class="timeline-hash">6d123f1</div>
+      </div>
+      <div class="timeline-item highlight">
+        <div class="timeline-date">Mar 30 &middot; 11:27 AM</div>
+        <div class="timeline-title">UI Polish — "Quiet Precision"</div>
+        <div class="timeline-desc">Design system overhaul: Outfit font, SVG icon system replacing emoji, branded header with glow effects, refined navigation with icons, custom form controls, entrance animations, noise texture.</div>
+        <div class="timeline-hash">d97d4ca</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ BRAND EVOLUTION ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Brand</span>
+    <h2>Color Evolution</h2>
+    <p>
+      The brand identity has gone through three distinct color phases so far,
+      each reflecting a shift in the product's personality as it matures.
+      The current green direction feels right, but the palette continues to expand.
+    </p>
+
+    <div class="color-evolution">
+      <div class="color-chip">
+        <div class="swatch" style="background: #6366f1;"></div>
+        <div class="color-info">
+          <div class="color-name">Phase 1 — Purple</div>
+          <div class="color-hex">#6366f1</div>
+        </div>
+      </div>
+      <span class="arrow-between">→</span>
+      <div class="color-chip">
+        <div class="swatch" style="background: #18ccf1;"></div>
+        <div class="color-info">
+          <div class="color-name">Phase 2 — Cyan</div>
+          <div class="color-hex">#18ccf1</div>
+        </div>
+      </div>
+      <span class="arrow-between">→</span>
+      <div class="color-chip">
+        <div class="swatch" style="background: #20fc8f; box-shadow: 0 0 12px rgba(32,252,143,0.3);"></div>
+        <div class="color-info">
+          <div class="color-name">Phase 3 — Green</div>
+          <div class="color-hex">#20fc8f</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-dim" style="font-size: 13px;">
+      Purple felt generic and safe. Cyan added energy but skewed too clinical.
+      Green landed as the current direction — electric, organic, signaling growth and organization
+      without the coldness of blue tones. The full brand palette now includes indigo and pink as
+      secondary accents, with the coal-black (#111313) background remaining constant — a dark canvas
+      that lets the accent colors own every interaction.
+    </p>
+
+    <div class="image-grid cols-3" style="margin-top: 32px;">
+      <div class="image-card">
+        <img src=".screens/01_33c7dd4_phase-2-initial-ui/01_tabs-organizer-idle.png" alt="Purple brand phase" loading="lazy">
+        <div class="caption"><strong>Purple</strong> · Initial commit</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/07_602a2f1_tab-locking-brand-theme/01_tabs-organizer-idle.png" alt="Cyan brand phase" loading="lazy">
+        <div class="caption"><strong>Cyan</strong> · Tab locking commit</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/10_64b74e3_new-branding/01_tabs-organizer-new-brand-colors.png" alt="Green brand phase" loading="lazy">
+        <div class="caption"><strong>Green</strong> · Final direction</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ UI EVOLUTION ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Evolution</span>
+    <h2>Interface Progression</h2>
+    <p>
+      Each major feature commit adds new UI surface area. The interface has grown from a simple
+      three-tab layout to a four-tab, multi-modal tool — and continues to be refined as the
+      product takes shape.
+    </p>
+
+    <h3 style="margin-top: 40px;">Bookmarks: From Placeholder to Full Tool</h3>
+    <p class="text-dim" style="font-size: 13px; margin-bottom: 24px;">
+      The Bookmarks screen started as a "coming soon" message and grew into the most complex
+      screen in the app — four operation modes, folder locking, and a filter system.
+    </p>
+    <div class="image-grid cols-4">
+      <div class="image-card">
+        <img src=".screens/01_33c7dd4_phase-2-initial-ui/02_bookmarks-placeholder.png" alt="Bookmarks placeholder" loading="lazy">
+        <div class="caption">Placeholder</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/04_013477c_bookmarks-org/01_bookmarks-mode-menu.png" alt="Bookmarks 3 modes" loading="lazy">
+        <div class="caption">3 modes added</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/08_7f90050_bookmark-locking/01_bookmarks-folder-locking.png" alt="Bookmarks with locking" loading="lazy">
+        <div class="caption">Folder locking</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/11_6d123f1_snapshot-manager/02_bookmarks-with-filter.png" alt="Bookmarks with filter" loading="lazy">
+        <div class="caption">Filter + 4 modes</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 48px;">Settings: Progressive Disclosure</h3>
+    <p class="text-dim" style="font-size: 13px; margin-bottom: 24px;">
+      Settings expanded from a basic stale threshold to a full AI configuration panel —
+      but only reveals complexity when users opt into cloud tiers.
+    </p>
+    <div class="image-grid cols-3">
+      <div class="image-card">
+        <img src=".screens/03_1a8162d_openrouter-options/02_settings-default.png" alt="Settings default" loading="lazy">
+        <div class="caption">Secure tier (minimal)</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/03_1a8162d_openrouter-options/03_settings-relaxed-openrouter.png" alt="Settings expanded" loading="lazy">
+        <div class="caption">Relaxed + OpenRouter</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/03_1a8162d_openrouter-options/04_settings-yolo-claude-provider.png" alt="Settings YOLO" loading="lazy">
+        <div class="caption">YOLO + Claude</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 48px;">Snapshots: New Surface Area</h3>
+    <p class="text-dim" style="font-size: 13px; margin-bottom: 24px;">
+      The Snapshots tab was the last major feature addition — an entirely new screen with
+      creation, management, and restore flows.
+    </p>
+    <div class="image-grid cols-3">
+      <div class="image-card">
+        <img src=".screens/11_6d123f1_snapshot-manager/03_snapshots-empty.png" alt="Snapshots empty state" loading="lazy">
+        <div class="caption">Empty state</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/11_6d123f1_snapshot-manager/04_snapshots-new-form.png" alt="Snapshot creation form" loading="lazy">
+        <div class="caption">Creation form</div>
+      </div>
+      <div class="image-card">
+        <img src=".screens/11_6d123f1_snapshot-manager/05_snapshots-new-form-filled.png" alt="Snapshot form filled" loading="lazy">
+        <div class="caption">Ready to save</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ POLISH ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Design Polish</span>
+    <h2>From Prototype to Product</h2>
+    <p>
+      The first major design pass — dubbed "Quiet Precision" — began transforming the UI from
+      a functional prototype into a cohesive product. No features changed; only the visual layer
+      was elevated. This is an ongoing process — each iteration sharpens the identity further.
+    </p>
+
+    <div class="callout">
+      <p>
+        <strong style="color: var(--brand);">Design philosophy:</strong>
+        The tool organizes chaos into order. The UI should embody that ethos — dense with
+        information when needed, beautifully minimal when idle. Every surface intentional,
+        every interaction grounded. This principle guides decisions as the product continues to evolve.
+      </p>
+    </div>
+
+    <h3>Key Design Decisions</h3>
+    <div class="feature-grid" style="margin-top: 16px;">
+      <div class="feature-card">
+        <h4>Outfit Typeface</h4>
+        <p>Geometric, confident, distinctive at every size. Replaces system defaults with a font that conveys precision.</p>
+      </div>
+      <div class="feature-card">
+        <h4>SVG Icon System</h4>
+        <p>All emoji (📁🔒🔓▲▼▶) replaced with crisp, consistent inline SVGs that scale perfectly.</p>
+      </div>
+      <div class="feature-card">
+        <h4>Glowing Accents</h4>
+        <p>CTA buttons and active nav indicators use box-shadow glow effects for a neon-on-dark signature.</p>
+      </div>
+      <div class="feature-card">
+        <h4>Custom Form Controls</h4>
+        <p>Range sliders with branded thumb glow, custom checkboxes, refined input focus states — all via CSS.</p>
+      </div>
+      <div class="feature-card">
+        <h4>Branded Navigation</h4>
+        <p>Icon+label nav tabs with a compact "VXRTX" header. Active indicator glows with the brand accent.</p>
+      </div>
+      <div class="feature-card">
+        <h4>Noise Texture</h4>
+        <p>Subtle SVG fractal noise at 1.5% opacity adds analog depth to the digital surface.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 48px;">Before & After</h3>
+    <div class="before-after">
+      <div class="ba-col">
+        <span class="ba-label before">Before</span>
+        <div class="image-card">
+          <img src=".screens/11_6d123f1_snapshot-manager/01_tabs-organizer.png" alt="Tabs before polish" loading="lazy">
+        </div>
+      </div>
+      <div class="ba-col">
+        <span class="ba-label after">After</span>
+        <div class="image-card">
+          <img src=".screens/redesign_01_tabs.png" alt="Tabs after polish" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <div class="before-after">
+      <div class="ba-col">
+        <span class="ba-label before">Before</span>
+        <div class="image-card">
+          <img src=".screens/11_6d123f1_snapshot-manager/02_bookmarks-with-filter.png" alt="Bookmarks before polish" loading="lazy">
+        </div>
+      </div>
+      <div class="ba-col">
+        <span class="ba-label after">After</span>
+        <div class="image-card">
+          <img src=".screens/redesign_02_bookmarks.png" alt="Bookmarks after polish" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <div class="before-after">
+      <div class="ba-col">
+        <span class="ba-label before">Before</span>
+        <div class="image-card">
+          <img src=".screens/11_6d123f1_snapshot-manager/03_snapshots-empty.png" alt="Snapshots before polish" loading="lazy">
+        </div>
+      </div>
+      <div class="ba-col">
+        <span class="ba-label after">After</span>
+        <div class="image-card">
+          <img src=".screens/redesign_03_snapshots.png" alt="Snapshots after polish" loading="lazy">
+        </div>
+      </div>
+    </div>
+
+    <div class="before-after">
+      <div class="ba-col">
+        <span class="ba-label before">Before</span>
+        <div class="image-card">
+          <img src=".screens/11_6d123f1_snapshot-manager/06_settings.png" alt="Settings before polish" loading="lazy">
+        </div>
+      </div>
+      <div class="ba-col">
+        <span class="ba-label after">After</span>
+        <div class="image-card">
+          <img src=".screens/redesign_04_settings.png" alt="Settings after polish" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ PATTERNS ═══ -->
+<section>
+  <div class="container narrow">
+    <span class="label">Patterns</span>
+    <h2>Design System</h2>
+    <p>
+      A consistent set of patterns has emerged that keeps the interface cohesive
+      across all four screens and dozens of states. These patterns form the foundation
+      for future work as the product grows.
+    </p>
+
+    <h3 style="margin-top: 32px;">State Machine Pattern</h3>
+    <p class="text-dim" style="font-size: 13px;">
+      Both organizers follow an identical five-state workflow:
+      <strong style="color: var(--zinc-300);">idle → loading → preview → applying → done</strong>.
+      This gives users a predictable mental model regardless of whether they're organizing
+      tabs or bookmarks. Each state has its own visual treatment — spinners with elapsed timers
+      for loading, interactive cards for preview, and success banners with undo for completion.
+    </p>
+
+    <h3 style="margin-top: 32px;">Progressive Disclosure</h3>
+    <p class="text-dim" style="font-size: 13px;">
+      Complexity is revealed only when needed. Settings shows a minimal interface for the "Secure" tier,
+      expanding to provider selection and API configuration only when users opt into cloud AI.
+      The Bookmarks screen uses a mode menu rather than cramming all four tools into a single view.
+    </p>
+
+    <h3 style="margin-top: 32px;">Safety-First Operations</h3>
+    <p class="text-dim" style="font-size: 13px;">
+      Every destructive action has a safety net. Organize operations create automatic snapshots.
+      Delete requires confirmation. Applied changes can be undone. Folders and groups can be locked
+      to exclude them from AI reorganization entirely.
+    </p>
+
+    <h3 style="margin-top: 32px;">Button Hierarchy</h3>
+    <div class="tech-pills" style="margin-top: 12px;">
+      <span class="tech-pill" style="background: #0acd72; color: #111313; border-color: #0acd72; font-family: var(--font); font-weight: 600;">Primary CTA</span>
+      <span class="tech-pill" style="border-color: var(--zinc-700); color: var(--zinc-300); font-family: var(--font); font-weight: 500;">Secondary</span>
+      <span class="tech-pill" style="border-color: #b45309; color: #fcd34d; font-family: var(--font); font-weight: 500;">Undo / Restore</span>
+      <span class="tech-pill" style="border-color: #b91c1c; color: #fca5a5; font-family: var(--font); font-weight: 500;">Destructive</span>
+      <span class="tech-pill" style="border: none; color: var(--zinc-500); font-family: var(--font);">Tertiary / Link</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ REFLECTIONS ═══ -->
+<section style="border-bottom: none;">
+  <div class="container narrow">
+    <span class="label">Reflections</span>
+    <h2>What's Working So Far</h2>
+    <p>
+      The initial sprint required ruthless prioritization. Establishing a consistent state
+      machine pattern early is paying dividends — every new feature slots into the existing
+      idle→loading→preview→done flow without inventing new paradigms.
+    </p>
+    <p>
+      The three-phase brand evolution, while unplanned, has been beneficial. Each color
+      shift forces a re-evaluation of the entire interface, revealing places where the design
+      relies too heavily on the accent color versus structural contrast. The recent expansion
+      to a full brand palette (green, indigo, pink) is opening up new possibilities for
+      semantic color use.
+    </p>
+    <p>
+      Separating design polish from feature work — making visual passes after functionality
+      stabilizes — prevents premature refinement from slowing down development. This pattern
+      will continue as the product grows.
+    </p>
+
+    <div class="callout" style="margin-top: 40px;">
+      <p>
+        <strong style="color: var(--brand);">Key takeaway so far:</strong>
+        In a side panel extension, every pixel competes for attention in a 400px-wide strip.
+        The most impactful design decisions are about what to <em>remove</em> — reducing visual
+        noise, tightening spacing, and replacing emoji with purposeful iconography. Restraint
+        is the hardest part of designing for constrained surfaces. This lesson will continue
+        to guide the project as new features are added.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <div style="color: var(--zinc-700); margin-bottom: 12px;">
+      <svg viewBox="0 0 1072 500" fill="none" style="height: 18px; width: auto;">
+        <path clip-rule="evenodd" d="m498.274 18.4204.507.1607 168.762-.032 105.642 181.7759s61.647-129.8647 113.814-181.5637c52.167-51.6991 184.431 19.8461 184.431 19.8461s-10.01 6.6281-24.64 31.7405c-11.75 20.1649-13.86 42.4441-13.86 42.4441s-65.359-161.2145-141.391-85.8651c-76.032 75.3491-108.862 189.7291-108.862 189.7291l156.489 269.249h-118.706c-5.596-9.624-15.946-29.507-29.623-55.782l-.098-.187-.223-.429c-17.947-34.476-41.575-79.866-67.771-127.665-.672-1.226-1.349-2.453-2.026-3.682l-.137-.248-1.325-2.404-2.235-4.067s-56.159 121.199-120.973 171.945c-83.112 65.073-217.216 23.577-217.216 23.577l14.83-54.967s75.161 89.584 164.585 49.429c89.423-40.155 155.275-196.297 155.275-196.297-73.819-133.144-117.474-284.990224-206.093-253.2903-45.602 101.1093-126.885 360.9643-156.67 454.7933l-.54-.171-.136.501h-116.565c-56.78-140.252-124.391-291.081-204.3806-420.1647-9.5719-15.4464-31.49272-34.4098-28.931892-40.0816 4.846182-10.7183 49.398492-8.1656 145.338492-8.1656 0 0 104.773 251.6579 133.844 344.4889 29.071 92.83 83.527 49.744 97.43 15.834l32.885-88.156s20.593-58.175 68.431-208.8607l12.517-39.4281z" fill="currentColor" fill-rule="evenodd"/>
+      </svg>
+    </div>
+    <p>Product design case study &middot; In progress &middot; Last updated March 2026</p>
+  </div>
+</footer>
+
+</body>
+</html>

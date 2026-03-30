@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
 
 @theme {
   --color-brand-50: #edfef5;
@@ -13,4 +14,203 @@
   --color-brand-900: #166135;
   --color-brand-950: #08421f;
   --color-coal: #111313;
+  --color-surface: #161818;
+  --color-surface-raised: #1c1e1e;
+  --font-family-sans: "Outfit", system-ui, sans-serif;
+}
+
+/* ─── Base ────────────────────────────────────────── */
+
+* {
+  font-family: var(--font-family-sans);
+}
+
+body {
+  background: var(--color-coal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px;
+}
+
+/* ─── Scrollbar ───────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2d2d;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3d3d;
+}
+
+/* ─── Animations ──────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes spinner-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--color-brand-400)); }
+  50% { filter: drop-shadow(0 0 8px var(--color-brand-400)); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out both;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.2s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+/* Staggered entrance delays for lists */
+.stagger-1 { animation-delay: 30ms; }
+.stagger-2 { animation-delay: 60ms; }
+.stagger-3 { animation-delay: 90ms; }
+.stagger-4 { animation-delay: 120ms; }
+.stagger-5 { animation-delay: 150ms; }
+
+/* ─── Range Slider ────────────────────────────────── */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #27272a, #3f3f46);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-brand-400);
+  border: 2px solid var(--color-coal);
+  box-shadow: 0 0 0 2px var(--color-brand-400), 0 0 12px color-mix(in srgb, var(--color-brand-400) 30%, transparent);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--color-brand-300), 0 0 16px color-mix(in srgb, var(--color-brand-400) 50%, transparent);
+}
+
+input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+input[type="range"]:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ─── Checkbox ────────────────────────────────────── */
+
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #52525b;
+  border-radius: 3px;
+  background: #18181b;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--color-brand-500);
+  border-color: var(--color-brand-400);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 1px;
+  width: 4px;
+  height: 7px;
+  border: solid var(--color-coal);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:hover {
+  border-color: #71717a;
+}
+
+input[type="checkbox"]:checked:hover {
+  background: var(--color-brand-400);
+  border-color: var(--color-brand-300);
+}
+
+/* ─── Focus Ring ──────────────────────────────────── */
+
+input:focus-visible,
+button:focus-visible {
+  outline: 1.5px solid var(--color-brand-400);
+  outline-offset: 1px;
+}
+
+/* ─── Transitions ─────────────────────────────────── */
+
+button, a, input, select, textarea {
+  transition: all 0.15s ease;
 }

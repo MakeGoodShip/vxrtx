@@ -366,11 +366,11 @@ export function TabOrganizer() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tab Organizer</h2>
+        <h2 className="text-base font-semibold tracking-tight">Tab Organizer</h2>
         {status === "idle" && (
           <button
             onClick={handleOrganize}
-            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal transition-colors hover:bg-brand-400"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-semibold text-coal shadow-[0_0_12px_color-mix(in_srgb,var(--color-brand-500)_30%,transparent)] transition-all hover:bg-brand-400 hover:shadow-[0_0_20px_color-mix(in_srgb,var(--color-brand-400)_40%,transparent)] active:scale-[0.98]"
           >
             Organize Tabs
           </button>
@@ -439,7 +439,11 @@ export function TabOrganizer() {
                   }`}
                   title={isLocked ? "Unlock group" : "Lock group"}
                 >
-                  {isLocked ? "🔒" : "🔓"}
+                  {isLocked ? (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" /></svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" /></svg>
+                  )}
                 </button>
               </div>
             );
@@ -684,7 +688,7 @@ export function TabOrganizer() {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-brand-400" />
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400" style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }} />
   );
 }
 
@@ -810,7 +814,7 @@ function GroupCard({
           onClick={() => setExpanded(!expanded)}
           className="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
         >
-          {expanded ? "▲" : "▼"}
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expanded ? "rotate-180" : ""}`}><path d="M2 3.5l3 3 3-3" /></svg>
         </button>
       </div>
 

@@ -20,7 +20,7 @@ export function BookmarkOrganizer() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Bookmark Organizer</h2>
+        <h2 className="text-base font-semibold tracking-tight">Bookmark Organizer</h2>
         {mode !== "menu" && (
           <button
             onClick={() => setMode("menu")}
@@ -188,7 +188,7 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
                     : "border-zinc-800 bg-zinc-900"
                 }`}
               >
-                <span className="text-xs text-zinc-500">📁</span>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-zinc-500"><path d="M1.5 3.5a1 1 0 011-1h2.5l1 1.5h4a1 1 0 011 1v4.5a1 1 0 01-1 1h-7.5a1 1 0 01-1-1z" /></svg>
                 <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
                   {folder.title}
                 </span>
@@ -208,7 +208,11 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
                   }`}
                   title={isLocked ? "Unlock folder" : "Lock folder"}
                 >
-                  {isLocked ? "🔒" : "🔓"}
+                  {isLocked ? (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" /></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" /></svg>
+                )}
                 </button>
               </div>
             );
@@ -1051,6 +1055,6 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-brand-400" />
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400" style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }} />
   );
 }

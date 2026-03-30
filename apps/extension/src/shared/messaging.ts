@@ -15,7 +15,13 @@ export type MessageAction =
   | "lock-bookmark-folder"
   | "unlock-bookmark-folder"
   | "get-settings"
-  | "save-settings";
+  | "save-settings"
+  | "get-snapshots"
+  | "create-snapshot"
+  | "restore-snapshot"
+  | "delete-snapshot"
+  | "rename-snapshot"
+  | "import-snapshots";
 
 export interface Message<T = unknown> {
   action: MessageAction;

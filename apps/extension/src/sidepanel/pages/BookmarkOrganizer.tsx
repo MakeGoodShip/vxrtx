@@ -47,6 +47,7 @@ export function BookmarkOrganizer() {
 function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
   const [folders, setFolders] = useState<FolderInfo[]>([]);
   const [lockedIds, setLockedIds] = useState<Set<string>>(new Set());
+  const [folderFilter, setFolderFilter] = useState("");
 
   useEffect(() => {
     loadFoldersAndLocks();
@@ -164,7 +165,19 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
           <p className="text-xs text-zinc-600">
             Locked folders are excluded from all organization.
           </p>
-          {folders.map((folder) => {
+          <input
+            type="text"
+            value={folderFilter}
+            onChange={(e) => setFolderFilter(e.target.value)}
+            placeholder="Filter folders..."
+            className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-brand-400 focus:outline-none"
+          />
+          {folders.filter((f) =>
+            folderFilter
+              ? f.title.toLowerCase().includes(folderFilter.toLowerCase()) ||
+                f.path.toLowerCase().includes(folderFilter.toLowerCase())
+              : true,
+          ).map((folder) => {
             const isLocked = lockedIds.has(folder.id);
             return (
               <div

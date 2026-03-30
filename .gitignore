@@ -29,3 +29,7 @@ coverage/
 
 # Wrong lockfile (pnpm project)
 package-lock.json
+
+# Test / binary data
+.screens/
+!.screens/DIRECTIVE.md

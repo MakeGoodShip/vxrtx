@@ -387,7 +387,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-[#f433ab]/20 bg-[#f433ab]/5 p-3 text-sm text-[#f472c8]">
           {error}
         </div>
       )}
@@ -628,7 +628,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-3">
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-[#f433ab]/20 bg-[#f433ab]/5 p-3 text-sm text-[#f472c8]">
           {error}
         </div>
       )}
@@ -841,7 +841,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-[#f433ab]/20 bg-[#f433ab]/5 p-3 text-sm text-[#f472c8]">
           {error}
         </div>
       )}
@@ -924,7 +924,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
                 <button
                   onClick={handleApply}
                   disabled={removals.size === 0}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-coal hover:bg-red-500 disabled:opacity-40"
+                  className="rounded-lg bg-[#f433ab] px-4 py-2 text-sm font-medium text-coal hover:bg-[#f472c8] disabled:opacity-40"
                 >
                   Remove {removals.size} Duplicate
                   {removals.size !== 1 ? "s" : ""}
@@ -1005,7 +1005,7 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-[#f433ab]/20 bg-[#f433ab]/5 p-3 text-sm text-[#f472c8]">
           {error}
         </div>
       )}

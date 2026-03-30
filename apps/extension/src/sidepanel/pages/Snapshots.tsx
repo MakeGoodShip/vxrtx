@@ -21,8 +21,8 @@ const TYPE_LABELS: Record<SnapshotType, string> = {
 };
 
 const TYPE_COLORS: Record<SnapshotType, string> = {
-  tabs: "bg-blue-900/50 text-blue-300",
-  bookmarks: "bg-purple-900/50 text-purple-300",
+  tabs: "bg-brand-indigo/30 text-[#8b7fd4]",
+  bookmarks: "bg-[#f433ab]/10 text-[#f472c8]",
   both: "bg-brand-900/50 text-brand-300",
 };
 
@@ -230,7 +230,7 @@ export function Snapshots() {
           className={`rounded-lg border p-3 text-sm ${
             message.type === "success"
               ? "border-green-800 bg-green-950/50 text-green-300"
-              : "border-red-800 bg-red-950/50 text-red-300"
+              : "border-[#f433ab]/20 bg-[#f433ab]/5 text-[#f472c8]"
           }`}
         >
           {message.text}
@@ -428,7 +428,7 @@ export function Snapshots() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleDelete(snap.id)}
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500"
+                          className="rounded-md bg-[#f433ab] px-3 py-1.5 text-xs font-medium text-coal hover:bg-[#f472c8]"
                         >
                           Confirm
                         </button>
@@ -442,7 +442,7 @@ export function Snapshots() {
                     ) : (
                       <button
                         onClick={() => setConfirmDeleteId(snap.id)}
-                        className="rounded-md px-3 py-1.5 text-xs text-red-400 transition-colors hover:bg-red-950/30"
+                        className="rounded-md px-3 py-1.5 text-xs text-[#f433ab] transition-colors hover:bg-[#f433ab]/10"
                       >
                         Delete
                       </button>

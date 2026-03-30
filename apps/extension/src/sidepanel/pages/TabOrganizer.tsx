@@ -378,7 +378,7 @@ export function TabOrganizer() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+        <div className="rounded-lg border border-[#f433ab]/20 bg-[#f433ab]/5 p-3 text-sm text-[#f472c8]">
           {error}
         </div>
       )}
@@ -469,7 +469,7 @@ export function TabOrganizer() {
                   </span>
                   <button
                     onClick={() => handleRemoveDormantLock(lock)}
-                    className="shrink-0 text-[10px] text-zinc-600 hover:text-red-400"
+                    className="shrink-0 text-[10px] text-zinc-600 hover:text-[#f433ab]"
                   >
                     remove
                   </button>
@@ -834,7 +834,7 @@ function GroupCard({
                 </span>
                 <button
                   onClick={() => onRemoveTab(index, tabId)}
-                  className="shrink-0 text-xs text-zinc-600 hover:text-red-400"
+                  className="shrink-0 text-xs text-zinc-600 hover:text-[#f433ab]"
                   title="Remove from group"
                 >
                   ✕

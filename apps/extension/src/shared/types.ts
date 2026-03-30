@@ -134,3 +134,18 @@ export interface BookmarkDuplicateGroup {
   url: string;
   bookmarks: BookmarkInfo[];
 }
+
+export type SnapshotSource = "auto" | "manual";
+export type SnapshotType = "tabs" | "bookmarks" | "both";
+
+export interface Snapshot {
+  id: string;
+  timestamp: number;
+  type: SnapshotType;
+  label: string;
+  source: SnapshotSource;
+  tabCount: number;
+  bookmarkCount: number;
+  tabs: TabSnapshot[];
+  bookmarks: BookmarkSnapshot[];
+}

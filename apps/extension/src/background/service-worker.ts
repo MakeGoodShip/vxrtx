@@ -12,6 +12,8 @@ import type {
   BookmarkDuplicateGroup,
   LocationSuggestion,
   FolderInfo,
+  Snapshot,
+  SnapshotType,
 } from "@/shared/types";
 import {
   getSettings,
@@ -23,6 +25,11 @@ import {
   saveLockedTabGroups,
   getLockedBookmarkFolders,
   saveLockedBookmarkFolders,
+  addSnapshot,
+  getSnapshotHistory,
+  deleteSnapshot,
+  renameSnapshot,
+  importSnapshots,
 } from "@/core/storage";
 import {
   queryAllTabs,
@@ -186,6 +193,38 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
         message.payload as { chromeGroupId: number },
       );
 
+    case "get-snapshots":
+      return { success: true, data: await getSnapshotHistory() };
+
+    case "create-snapshot":
+      return await handleCreateSnapshot(
+        message.payload as { label: string; type: SnapshotType },
+      );
+
+    case "restore-snapshot":
+      return await handleRestoreSnapshot(
+        message.payload as { id: string; restoreType: SnapshotType },
+      );
+
+    case "delete-snapshot":
+      await deleteSnapshot(
+        (message.payload as { id: string }).id,
+      );
+      return { success: true };
+
+    case "rename-snapshot": {
+      const rp = message.payload as { id: string; label: string };
+      await renameSnapshot(rp.id, rp.label);
+      return { success: true };
+    }
+
+    case "import-snapshots": {
+      const imported = await importSnapshots(
+        (message.payload as { snapshots: Snapshot[] }).snapshots,
+      );
+      return { success: true, data: { imported } };
+    }
+
     default:
       return { success: false, error: `Unknown action: ${message.action}` };
   }
@@ -265,6 +304,19 @@ async function handleApplyTabSuggestions(
     windowId: t.windowId,
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
+
+  // Persistent auto-snapshot for history
+  await addSnapshot({
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    type: "tabs",
+    label: "Before tab organization",
+    source: "auto",
+    tabCount: snapshot.length,
+    bookmarkCount: 0,
+    tabs: snapshot,
+    bookmarks: [],
+  });
 
   for (const group of result.groups) {
     const validTabIds = group.tabIds.filter(
@@ -636,10 +688,21 @@ async function handleApplyBookmarkSuggestions(
   // Re-snapshot before applying
   const tree = await getBookmarkTree();
   const bookmarks = flattenBookmarks(tree);
-  await setSessionData(
-    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
-    snapshotBookmarks(bookmarks),
-  );
+  const bmSnapshot = snapshotBookmarks(bookmarks);
+  await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, bmSnapshot);
+
+  // Persistent auto-snapshot for history
+  await addSnapshot({
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    type: "bookmarks",
+    label: "Before bookmark organization",
+    source: "auto",
+    tabCount: 0,
+    bookmarkCount: bmSnapshot.length,
+    tabs: [],
+    bookmarks: bmSnapshot,
+  });
 
   // Build locked set so we never move/remove locked bookmarks
   const lockedFolders = await getLockedBookmarkFolders();
@@ -713,4 +776,130 @@ async function handleUndoBookmarkChanges(): Promise<MessageResponse> {
 
   await clearSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT);
   return { success: true };
+}
+
+// ─── Snapshot Management ──────────────────────────────────────────────
+
+async function handleCreateSnapshot(
+  payload: { label: string; type: SnapshotType },
+): Promise<MessageResponse> {
+  let tabs: TabSnapshot[] = [];
+  let bmSnapshots: BookmarkSnapshot[] = [];
+
+  if (payload.type === "tabs" || payload.type === "both") {
+    const allTabs = await queryAllTabs();
+    tabs = allTabs.map((t) => ({
+      id: t.id,
+      groupId: t.groupId,
+      windowId: t.windowId,
+    }));
+  }
+
+  if (payload.type === "bookmarks" || payload.type === "both") {
+    const tree = await getBookmarkTree();
+    const allBookmarks = flattenBookmarks(tree);
+    bmSnapshots = snapshotBookmarks(allBookmarks);
+  }
+
+  await addSnapshot({
+    id: crypto.randomUUID(),
+    timestamp: Date.now(),
+    type: payload.type,
+    label: payload.label,
+    source: "manual",
+    tabCount: tabs.length,
+    bookmarkCount: bmSnapshots.length,
+    tabs,
+    bookmarks: bmSnapshots,
+  });
+
+  return { success: true };
+}
+
+async function handleRestoreSnapshot(
+  payload: { id: string; restoreType: SnapshotType },
+): Promise<MessageResponse<{ tabsRestored: number; tabsSkipped: number; bookmarksRestored: number; bookmarksSkipped: number }>> {
+  const history = await getSnapshotHistory();
+  const snapshot = history.find((s) => s.id === payload.id);
+  if (!snapshot) {
+    return { success: false, error: "Snapshot not found" };
+  }
+
+  let tabsRestored = 0;
+  let tabsSkipped = 0;
+  let bookmarksRestored = 0;
+  let bookmarksSkipped = 0;
+
+  // Restore tabs
+  if (
+    (payload.restoreType === "tabs" || payload.restoreType === "both") &&
+    snapshot.tabs.length > 0
+  ) {
+    const currentTabs = await queryAllTabs();
+    const windowId = currentTabs[0]?.windowId;
+
+    const lockedGroups =
+      windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+    const lockedTabIds = getLockedTabIds(lockedGroups, currentTabs);
+
+    // Ungroup all non-locked grouped tabs
+    const groupedTabIds = currentTabs
+      .filter((t) => t.groupId !== -1 && !lockedTabIds.has(t.id))
+      .map((t) => t.id);
+    if (groupedTabIds.length > 0) {
+      await ungroupTabs(groupedTabIds);
+    }
+
+    // Re-group from snapshot
+    const groupMap = new Map<number, number[]>();
+    for (const entry of snapshot.tabs) {
+      if (entry.groupId !== -1 && !lockedTabIds.has(entry.id)) {
+        const existing = groupMap.get(entry.groupId);
+        if (existing) {
+          existing.push(entry.id);
+        } else {
+          groupMap.set(entry.groupId, [entry.id]);
+        }
+      }
+    }
+
+    if (windowId !== undefined) {
+      for (const tabIds of groupMap.values()) {
+        const validIds = tabIds.filter((id) =>
+          currentTabs.some((t) => t.id === id),
+        );
+        tabsRestored += validIds.length;
+        tabsSkipped += tabIds.length - validIds.length;
+        if (validIds.length > 0) {
+          await chrome.tabs.group({
+            tabIds: validIds as [number, ...number[]],
+            createProperties: { windowId },
+          });
+        }
+      }
+    }
+  }
+
+  // Restore bookmarks
+  if (
+    (payload.restoreType === "bookmarks" || payload.restoreType === "both") &&
+    snapshot.bookmarks.length > 0
+  ) {
+    for (const entry of snapshot.bookmarks) {
+      try {
+        await moveBookmark(entry.id, {
+          parentId: entry.parentId,
+          index: entry.index,
+        });
+        bookmarksRestored++;
+      } catch {
+        bookmarksSkipped++;
+      }
+    }
+  }
+
+  return {
+    success: true,
+    data: { tabsRestored, tabsSkipped, bookmarksRestored, bookmarksSkipped },
+  };
 }

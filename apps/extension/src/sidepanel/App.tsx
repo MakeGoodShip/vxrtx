@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { TabOrganizer } from "./pages/TabOrganizer";
 import { BookmarkOrganizer } from "./pages/BookmarkOrganizer";
+import { Snapshots } from "./pages/Snapshots";
 import { Settings } from "./pages/Settings";
 
-type Page = "tabs" | "bookmarks" | "settings";
+type Page = "tabs" | "bookmarks" | "snapshots" | "settings";
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "tabs", label: "Tabs" },
   { id: "bookmarks", label: "Bookmarks" },
+  { id: "snapshots", label: "Snapshots" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -35,6 +37,7 @@ export function App() {
       <main className="p-4">
         {page === "tabs" && <TabOrganizer />}
         {page === "bookmarks" && <BookmarkOrganizer />}
+        {page === "snapshots" && <Snapshots />}
         {page === "settings" && <Settings />}
       </main>
     </div>

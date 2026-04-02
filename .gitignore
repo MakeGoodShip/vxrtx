@@ -16,6 +16,7 @@ dist/
 *.tsbuildinfo
 .cache/
 coverage/
+design-artifacts/
 
 # Logs
 *.log
@@ -24,7 +25,10 @@ coverage/
 .vscode/
 
 # AI agent configs
+.bmad/
 .claude/
+.crush/
+.opencode/
 .serena/
 
 # Wrong lockfile (pnpm project)

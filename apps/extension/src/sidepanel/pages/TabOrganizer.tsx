@@ -387,11 +387,25 @@ export function TabOrganizer() {
       {status === "idle" && !error && (
         <div className="space-y-3">
           <GranularitySlider value={granularity} onChange={setGranularity} />
-          <p className="text-xs text-zinc-600">
-            {chromeGroups.length > 0
-              ? "Locked groups are excluded from all organization."
-              : 'Click "Organize Tabs" to analyze and group your open tabs.'}
-          </p>
+          {chromeGroups.length > 0 ? (
+            <p className="text-xs text-zinc-600">
+              Locked groups are excluded from all organization.
+            </p>
+          ) : (
+            <div className="flex flex-col items-center py-6 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                  <rect x="2" y="5" width="16" height="12" rx="2" />
+                  <path d="M2 8h16" />
+                  <path d="M7 5v3" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-zinc-400">No tab groups yet</p>
+              <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                Organize your open tabs into smart groups with a single click.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -533,6 +547,21 @@ export function TabOrganizer() {
               Re-analyze
             </button>
           </div>
+
+          {/* Nothing to do */}
+          {preview.groups.length === 0 && preview.staleEnabled.size === 0 && preview.allDuplicates.length === 0 && (
+            <div className="flex flex-col items-center py-6 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                  <path d="M6 10l3 3 5-6" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-zinc-400">Tabs look good</p>
+              <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                No grouping suggestions, stale tabs, or duplicates found.
+              </p>
+            </div>
+          )}
 
           {/* Groups */}
           {preview.groups.length > 0 && (

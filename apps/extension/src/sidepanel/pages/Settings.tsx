@@ -7,26 +7,24 @@ import type {
 } from "@/shared/types";
 import { DEFAULT_SETTINGS } from "@/shared/types";
 
-const TIER_INFO: { id: AITier; label: string; description: string; activeClass: string }[] = [
+const TIER_INFO: { id: AITier; label: string; description: string; activeColor: string }[] = [
   {
     id: "secure",
     label: "Secure",
-    description: "Fully local AI. Nothing leaves your machine.",
-    activeClass: "border-brand-400 bg-brand-950/30",
+    description: "Fully local. Nothing leaves your machine.",
+    activeColor: "text-brand-400 border-brand-400 bg-brand-950/30",
   },
   {
     id: "relaxed",
     label: "Relaxed",
-    description:
-      "Cloud AI with minimal data exposure. Titles only, no URLs.",
-    activeClass: "border-[#5b4db8] bg-[#2d226d]/20",
+    description: "Cloud AI, minimal data. Titles only, no URLs.",
+    activeColor: "text-[#8b7fd4] border-[#5b4db8] bg-[#2d226d]/20",
   },
   {
     id: "yolo",
     label: "YOLO",
-    description:
-      "Full context sent to AI for best results. Titles, URLs, timestamps.",
-    activeClass: "border-[#f433ab]/60 bg-[#f433ab]/8",
+    description: "Full context to AI. Titles, URLs, timestamps.",
+    activeColor: "text-[#f472c8] border-[#f433ab]/60 bg-[#f433ab]/8",
   },
 ];
 
@@ -100,48 +98,61 @@ export function Settings() {
         <h3 className="text-sm font-medium text-zinc-300">
           AI Privacy Tier
         </h3>
-        <div className="space-y-2">
-          {TIER_INFO.map((tier) => (
-            <button
-              key={tier.id}
-              onClick={() => save({ aiTier: tier.id })}
-              className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                settings.aiTier === tier.id
-                  ? tier.activeClass
-                  : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
-              }`}
-            >
-              <div className="text-sm font-medium">{tier.label}</div>
-              <div className="mt-0.5 text-xs text-zinc-500">
-                {tier.description}
-              </div>
-            </button>
-          ))}
+        <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
+          {TIER_INFO.map((tier) => {
+            const isActive = settings.aiTier === tier.id;
+            return (
+              <button
+                key={tier.id}
+                onClick={() => save({ aiTier: tier.id })}
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? tier.activeColor
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {tier.label}
+              </button>
+            );
+          })}
         </div>
+        <p className="text-[11px] text-zinc-600">
+          {TIER_INFO.find((t) => t.id === settings.aiTier)?.description}
+        </p>
       </section>
+
+      {/* Secure mode note */}
+      {!showCloudSettings && (
+        <p className="text-[11px] text-zinc-600">
+          All processing runs locally. Switch to Relaxed or YOLO for cloud AI options.
+        </p>
+      )}
 
       {/* Model Provider */}
       {showCloudSettings && (
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-zinc-300">AI Provider</h3>
-          <div className="space-y-2">
-            {MODEL_PROVIDERS.map((provider) => (
-              <button
-                key={provider.id}
-                onClick={() => save({ aiModelProvider: provider.id })}
-                className={`w-full rounded-lg border p-2.5 text-left transition-colors ${
-                  settings.aiModelProvider === provider.id
-                    ? "border-brand-400 bg-brand-950/30"
-                    : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
-                }`}
-              >
-                <div className="text-sm font-medium">{provider.label}</div>
-                <div className="mt-0.5 text-xs text-zinc-500">
-                  {provider.description}
-                </div>
-              </button>
-            ))}
+          <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
+            {MODEL_PROVIDERS.map((provider) => {
+              const isActive = settings.aiModelProvider === provider.id;
+              return (
+                <button
+                  key={provider.id}
+                  onClick={() => save({ aiModelProvider: provider.id })}
+                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                    isActive
+                      ? "border border-brand-400 bg-brand-950/30 text-brand-400"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {provider.label}
+                </button>
+              );
+            })}
           </div>
+          <p className="text-[11px] text-zinc-600">
+            {MODEL_PROVIDERS.find((p) => p.id === settings.aiModelProvider)?.description}
+          </p>
         </section>
       )}
 

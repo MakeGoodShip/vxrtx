@@ -115,39 +115,55 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
   const modes = [
     {
       id: "organize" as Mode,
-      title: "Reorganize All",
-      description: "AI suggests a new folder structure for your bookmarks",
+      title: "Reorganize",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 4h10M2 7h7M2 10h4" />
+        </svg>
+      ),
     },
     {
       id: "locate" as Mode,
-      title: "Where Should This Go?",
-      description: "Pick a bookmark and AI suggests the best folder for it",
+      title: "Place",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 1.5v11M4 9.5l3 3 3-3" />
+        </svg>
+      ),
     },
     {
       id: "duplicates" as Mode,
-      title: "Find Duplicates",
-      description: "Scan for duplicate bookmarks and clean them up",
+      title: "Duplicates",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="1.5" y="3.5" width="8" height="8" rx="1" />
+          <path d="M4.5 3.5V2.5a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-1" />
+        </svg>
+      ),
     },
     {
       id: "cleanup" as Mode,
-      title: "Clean Up Empty Folders",
-      description: "Remove folders that no longer contain any bookmarks",
+      title: "Clean Up",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1.5 3.5a1 1 0 011-1h2.5l1 1.5h4a1 1 0 011 1v4.5a1 1 0 01-1 1h-7.5a1 1 0 01-1-1z" />
+          <path d="M5.5 7l3 0" />
+        </svg>
+      ),
     },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {modes.map((m) => (
           <button
             key={m.id}
             onClick={() => onSelect(m.id)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-zinc-700"
+            className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-left transition-colors hover:border-zinc-700 hover:bg-zinc-800/60"
           >
-            <div className="text-sm font-medium text-zinc-200">{m.title}</div>
-            <div className="mt-0.5 text-xs text-zinc-500">
-              {m.description}
-            </div>
+            <span className="text-zinc-500">{m.icon}</span>
+            <span className="text-xs font-medium text-zinc-200">{m.title}</span>
           </button>
         ))}
       </div>
@@ -518,9 +534,17 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
               </div>
             </>
           ) : (
-            <p className="text-sm text-zinc-500">
-              No reorganization suggestions. Your bookmarks look well organized!
-            </p>
+            <div className="flex flex-col items-center py-6 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                  <path d="M6 10l3 3 5-6" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-zinc-400">Bookmarks look good</p>
+              <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                No reorganization needed. Your folders are well organized.
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -668,9 +692,22 @@ function LocateMode({ onBack }: { onBack: () => void }) {
               </p>
             )}
             {filtered.length === 0 && bookmarks.length > 0 && (
-              <p className="text-center text-xs text-zinc-600">
+              <p className="py-4 text-center text-xs text-zinc-600">
                 No bookmarks match your search
               </p>
+            )}
+            {bookmarks.length === 0 && (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                    <path d="M5 3h10a1.5 1.5 0 011.5 1.5v13l-6.5-4-6.5 4V4.5A1.5 1.5 0 015 3z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-zinc-400">No bookmarks</p>
+                <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                  Add some bookmarks first, then come back to organize them.
+                </p>
+              </div>
             )}
           </div>
         </>
@@ -856,9 +893,17 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
       {status === "preview" && data && (
         <div className="space-y-3">
           {data.duplicates.length === 0 ? (
-            <p className="text-sm text-zinc-500">
-              No duplicate bookmarks found!
-            </p>
+            <div className="flex flex-col items-center py-6 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                  <path d="M6 10l3 3 5-6" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-zinc-400">No duplicates</p>
+              <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                All your bookmarks are unique.
+              </p>
+            </div>
           ) : (
             <>
               <p className="text-xs text-zinc-500">

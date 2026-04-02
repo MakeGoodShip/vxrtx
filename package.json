@@ -9,9 +9,11 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "dev:extension": "pnpm --filter @vxrtx/extension dev",
+    "dev:ext": "pnpm --filter @vxrtx/extension dev",
     "dev:web": "pnpm --filter @vxrtx/web dev",
     "dev:docs": "pnpm --filter @vxrtx/docs dev",
     "build:extension": "pnpm --filter @vxrtx/extension build",
+    "build:ext": "pnpm --filter @vxrtx/extension build",
     "build:web": "pnpm --filter @vxrtx/web build",
     "build:docs": "pnpm --filter @vxrtx/docs build"
   },
@@ -19,6 +21,9 @@
     "turbo": "^2.5.4"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }

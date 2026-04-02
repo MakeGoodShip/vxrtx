@@ -10,6 +10,11 @@ export default defineConfig({
       "@": "/src",
     },
   },
+  server: {
+    cors: {
+      origin: "*",
+    },
+  },
   build: {
     outDir: "dist",
   },

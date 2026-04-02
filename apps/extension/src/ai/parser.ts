@@ -43,6 +43,34 @@ const BookmarkLocationSchema = z.object({
   suggestions: z.array(LocationSuggestionSchema),
 });
 
+/**
+ * Retry wrapper: attempts parse, on failure retries the LLM call with error context.
+ * Max 1 retry (2 total attempts). Only retries on parse failures — API errors propagate immediately.
+ */
+export async function withRetry<T>(
+  completeFn: (errorContext?: string) => Promise<string>,
+  parseFn: (raw: string) => T,
+): Promise<T> {
+  // First attempt: let API errors propagate, only catch parse failures
+  const raw = await completeFn();
+  try {
+    return parseFn(raw);
+  } catch (parseErr) {
+    // Parse failed — retry with error context
+    const errMsg = (parseErr instanceof Error ? parseErr.message : String(parseErr)).slice(0, 500);
+    const errorContext = `Your previous response failed validation: ${errMsg}. Return ONLY valid JSON matching the schema exactly.`;
+    const retryRaw = await completeFn(errorContext);
+    try {
+      return parseFn(retryRaw);
+    } catch (secondErr) {
+      throw new Error(
+        `AI response could not be parsed after 2 attempts. Last error: ${secondErr instanceof Error ? secondErr.message : String(secondErr)}`,
+        { cause: secondErr },
+      );
+    }
+  }
+}
+
 export function parseTabOrganization(raw: string): TabOrganizationAIResult {
   const json = extractJson(raw);
   const parsed = TabOrganizationSchema.parse(json);

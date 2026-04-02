@@ -1,4 +1,4 @@
-import type { AIProvider, TabOrganizationAIResult, AIRequestOptions } from "../types";
+import type { AIProvider, TabOrganizationAIResult } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -16,7 +16,9 @@ import {
   buildBookmarkLocationPrompt,
   bookmarksToYoloInput,
 } from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation } from "../parser";
+import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation, withRetry } from "../parser";
+
+const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
 
 export class YoloProvider implements AIProvider {
   constructor(
@@ -28,8 +30,10 @@ export class YoloProvider implements AIProvider {
   async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
     const input = tabsToYoloInput(tabs);
     const prompt = buildTabGroupingPrompt(input, { includeUrls: true, granularity });
-    const response = await this.complete(prompt);
-    return parseTabOrganization(response);
+    return withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseTabOrganization,
+    );
   }
 
   async organizeBookmarks(
@@ -38,8 +42,10 @@ export class YoloProvider implements AIProvider {
   ): Promise<BookmarkOrganizationResult> {
     const input = bookmarksToYoloInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: true, granularity });
-    const response = await this.complete(prompt);
-    const parsed = parseBookmarkOrganization(response);
+    const parsed = await withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseBookmarkOrganization,
+    );
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
       moves: [],
@@ -57,19 +63,24 @@ export class YoloProvider implements AIProvider {
     const prompt = buildBookmarkLocationPrompt(input, folders, {
       includeUrls: true,
     });
-    const response = await this.complete(prompt);
-    return parseBookmarkLocation(response).suggestions;
+    const parsed = await withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseBookmarkLocation,
+    );
+    return parsed.suggestions;
   }
 
-  private async complete(prompt: string): Promise<string> {
+  private async complete(prompt: string, errorContext?: string): Promise<string> {
     if (this.modelProvider === "claude") {
-      return this.completeClaude(prompt);
+      return this.completeClaude(prompt, errorContext);
     }
-    return this.completeOpenAI(prompt);
+    return this.completeOpenAI(prompt, errorContext);
   }
 
-  private async completeClaude(prompt: string): Promise<string> {
+  private async completeClaude(prompt: string, errorContext?: string): Promise<string> {
     if (!this.claudeKey) throw new Error("Anthropic API key not configured");
+
+    const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -82,7 +93,9 @@ export class YoloProvider implements AIProvider {
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
+        temperature: 0.0,
+        system: SYSTEM_MESSAGE,
+        messages: [{ role: "user", content: userContent }],
       }),
     });
 
@@ -99,8 +112,10 @@ export class YoloProvider implements AIProvider {
     return textBlock.text;
   }
 
-  private async completeOpenAI(prompt: string): Promise<string> {
+  private async completeOpenAI(prompt: string, errorContext?: string): Promise<string> {
     if (!this.openaiKey) throw new Error("OpenAI API key not configured");
+
+    const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -111,14 +126,10 @@ export class YoloProvider implements AIProvider {
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          {
-            role: "system",
-            content:
-              "You are a browser organization assistant. Always respond with valid JSON only.",
-          },
-          { role: "user", content: prompt },
+          { role: "system", content: SYSTEM_MESSAGE },
+          { role: "user", content: userContent },
         ],
-        temperature: 0.3,
+        temperature: 0.0,
         response_format: { type: "json_object" },
       }),
     });

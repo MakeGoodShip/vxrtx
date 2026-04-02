@@ -21,7 +21,10 @@ import {
   parseTabOrganization,
   parseBookmarkOrganization,
   parseBookmarkLocation,
+  withRetry,
 } from "../parser";
+
+const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
 
 /**
  * OpenRouter provider — unified gateway to Claude, GPT, Llama, Mistral, etc.
@@ -43,8 +46,10 @@ export class OpenRouterProvider implements AIProvider {
       includeUrls: this.includeUrls,
       granularity,
     });
-    const response = await this.complete(prompt);
-    return parseTabOrganization(response);
+    return withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseTabOrganization,
+    );
   }
 
   async organizeBookmarks(
@@ -58,8 +63,10 @@ export class OpenRouterProvider implements AIProvider {
       includeUrls: this.includeUrls,
       granularity,
     });
-    const response = await this.complete(prompt);
-    const parsed = parseBookmarkOrganization(response);
+    const parsed = await withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseBookmarkOrganization,
+    );
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
       moves: [],
@@ -79,12 +86,17 @@ export class OpenRouterProvider implements AIProvider {
     const prompt = buildBookmarkLocationPrompt(input, folders, {
       includeUrls: this.includeUrls,
     });
-    const response = await this.complete(prompt);
-    return parseBookmarkLocation(response).suggestions;
+    const parsed = await withRetry(
+      (errorContext) => this.complete(prompt, errorContext),
+      parseBookmarkLocation,
+    );
+    return parsed.suggestions;
   }
 
-  private async complete(prompt: string): Promise<string> {
+  private async complete(prompt: string, errorContext?: string): Promise<string> {
     if (!this.apiKey) throw new Error("OpenRouter API key not configured");
+
+    const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -99,14 +111,10 @@ export class OpenRouterProvider implements AIProvider {
         body: JSON.stringify({
           model: this.model,
           messages: [
-            {
-              role: "system",
-              content:
-                "You are a browser organization assistant. Always respond with valid JSON only.",
-            },
-            { role: "user", content: prompt },
+            { role: "system", content: SYSTEM_MESSAGE },
+            { role: "user", content: userContent },
           ],
-          temperature: 0.3,
+          temperature: 0.0,
         }),
       },
     );

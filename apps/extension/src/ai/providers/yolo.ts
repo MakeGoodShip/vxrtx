@@ -1,4 +1,4 @@
-import type { AIProvider, TabOrganizationAIResult } from "../types";
+import { SYSTEM_MESSAGE, type AIProvider, type TabOrganizationAIResult } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -17,8 +17,6 @@ import {
   bookmarksToYoloInput,
 } from "../prompts/bookmark-grouping";
 import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation, withRetry } from "../parser";
-
-const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
 
 export class YoloProvider implements AIProvider {
   constructor(

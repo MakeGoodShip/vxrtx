@@ -33,3 +33,5 @@ export interface AIRequestOptions {
   apiKey: string;
   model?: string;
 }
+
+export const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";

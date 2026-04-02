@@ -43,19 +43,28 @@ const BookmarkLocationSchema = z.object({
   suggestions: z.array(LocationSuggestionSchema),
 });
 
+function isRetryableParseError(err: unknown): boolean {
+  return err instanceof SyntaxError
+    || err instanceof z.ZodError
+    || (err instanceof Error && err.message === "No valid JSON found in AI response");
+}
+
 /**
  * Retry wrapper: attempts parse, on failure retries the LLM call with error context.
- * Max 1 retry (2 total attempts). Only retries on parse failures — API errors propagate immediately.
+ * Max 1 retry (2 total attempts). Only retries on parse/validation failures — API and runtime errors propagate immediately.
  */
 export async function withRetry<T>(
   completeFn: (errorContext?: string) => Promise<string>,
   parseFn: (raw: string) => T,
 ): Promise<T> {
-  // First attempt: let API errors propagate, only catch parse failures
+  // First attempt: let API errors propagate, only catch retryable parse/validation failures
   const raw = await completeFn();
   try {
     return parseFn(raw);
   } catch (parseErr) {
+    if (!isRetryableParseError(parseErr)) {
+      throw parseErr;
+    }
     // Parse failed — retry with error context
     const errMsg = (parseErr instanceof Error ? parseErr.message : String(parseErr)).slice(0, 500);
     const errorContext = `Your previous response failed validation: ${errMsg}. Return ONLY valid JSON matching the schema exactly.`;

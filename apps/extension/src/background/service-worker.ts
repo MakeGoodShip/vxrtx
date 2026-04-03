@@ -60,7 +60,7 @@ import {
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
-import { getCorrections, saveCorrections } from "@/core/storage";
+import { getCorrections, saveCorrections, appendExperimentLog, updateExperimentLog, getExperimentLogs } from "@/core/storage";
 import { extractCorrections, mergeCorrections } from "@/core/corrections";
 
 // Open side panel when extension icon is clicked
@@ -286,10 +286,26 @@ async function handleOrganizeTabs(
       const provider = await getAIProvider();
       const corrections = await getCorrections();
       const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+      const startTime = Date.now();
       const aiResult = await provider.organizeTabs(tabs, { granularity: g, corrections, onStatus });
+      const latencyMs = Date.now() - startTime;
       sendProgress?.(3, 4, "Processing results...");
       // Store original AI groups for correction diff at apply time
       await setSessionData("vxrtx_ai_tab_groups", aiResult.groups);
+
+      // Log experiment for A/B analysis
+      const experimentId = crypto.randomUUID();
+      await setSessionData("vxrtx_experiment_id", experimentId);
+      await appendExperimentLog({
+        id: experimentId,
+        timestamp: Date.now(),
+        variant: "default",
+        model: modelLabel,
+        itemCount: tabs.length,
+        latencyMs,
+        groupCount: aiResult.groups.length,
+      });
+
       result = {
         tabs,
         groups: aiResult.groups,
@@ -392,12 +408,23 @@ async function handleApplyTabSuggestions(
     const aiGroups = await getSessionData<TabGroupSuggestion[]>("vxrtx_ai_tab_groups");
     if (aiGroups && aiGroups.length > 0) {
       const newCorrections = extractCorrections(aiGroups, result.groups, tabs);
+      const editCount = newCorrections.filter((c) => c.source === "correction").length;
+
       if (newCorrections.length > 0) {
         const existing = await getCorrections();
         const merged = mergeCorrections(existing, newCorrections);
         await saveCorrections(merged);
         console.log(`[vxrtx] Saved ${newCorrections.length} correction signal(s), ${merged.length} total stored`);
       }
+
+      // Update experiment log with edit count
+      const experimentId = await getSessionData<string>("vxrtx_experiment_id");
+      if (experimentId) {
+        await updateExperimentLog(experimentId, { editCount });
+        console.log(`[vxrtx] Experiment ${experimentId.slice(0, 8)}: ${editCount} edit(s)`);
+        await clearSessionData("vxrtx_experiment_id");
+      }
+
       await clearSessionData("vxrtx_ai_tab_groups");
     }
   } catch (err) {
@@ -459,6 +486,16 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
   }
 
   await clearSessionData(STORAGE_KEYS.TAB_SNAPSHOT);
+
+  // Mark the most recent experiment as undone
+  try {
+    const logs = await getExperimentLogs();
+    if (logs.length > 0) {
+      const latest = logs[logs.length - 1];
+      await updateExperimentLog(latest.id, { undone: true });
+    }
+  } catch { /* non-critical */ }
+
   return { success: true };
 }
 

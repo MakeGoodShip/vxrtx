@@ -155,6 +155,28 @@ export interface CorrectionSignal {
   source?: SignalSource;
 }
 
+// ─── Experiment Logs ────────────────────────────────────────────────
+
+export interface ExperimentLog {
+  /** Unique ID for correlating organize→apply pairs */
+  id: string;
+  timestamp: number;
+  /** Prompt variant identifier (e.g., "default", "v2-fewshot") */
+  variant: string;
+  /** LLM model used */
+  model: string;
+  /** Number of items sent to the AI */
+  itemCount: number;
+  /** AI response latency in milliseconds */
+  latencyMs: number;
+  /** Number of groups the AI suggested */
+  groupCount: number;
+  /** Number of user edits before applying (0 = accepted as-is). Set at apply time. */
+  editCount?: number;
+  /** Whether the user undid the changes after applying */
+  undone?: boolean;
+}
+
 // ─── Snapshots ──────────────────────────────────────────────────────
 
 export type SnapshotSource = "auto" | "manual";

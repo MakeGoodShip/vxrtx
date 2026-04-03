@@ -1,5 +1,5 @@
-import { STORAGE_KEYS, MAX_SNAPSHOTS } from "@/shared/constants";
-import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder, type Snapshot, type CorrectionSignal } from "@/shared/types";
+import { STORAGE_KEYS, MAX_SNAPSHOTS, MAX_EXPERIMENT_LOGS } from "@/shared/constants";
+import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder, type Snapshot, type CorrectionSignal, type ExperimentLog } from "@/shared/types";
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
@@ -67,6 +67,35 @@ export async function getCorrections(): Promise<CorrectionSignal[]> {
 
 export async function saveCorrections(corrections: CorrectionSignal[]): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEYS.CORRECTIONS]: corrections });
+}
+
+// ─── Experiment Logs ─────────────────────────────────────────────────
+
+export async function getExperimentLogs(): Promise<ExperimentLog[]> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.EXPERIMENT_LOGS);
+  return (result[STORAGE_KEYS.EXPERIMENT_LOGS] as ExperimentLog[]) ?? [];
+}
+
+export async function appendExperimentLog(log: ExperimentLog): Promise<void> {
+  const logs = await getExperimentLogs();
+  logs.push(log);
+  // Keep only the most recent entries
+  const trimmed = logs.length > MAX_EXPERIMENT_LOGS
+    ? logs.slice(logs.length - MAX_EXPERIMENT_LOGS)
+    : logs;
+  await chrome.storage.local.set({ [STORAGE_KEYS.EXPERIMENT_LOGS]: trimmed });
+}
+
+export async function updateExperimentLog(
+  id: string,
+  update: Partial<Pick<ExperimentLog, "editCount" | "undone">>,
+): Promise<void> {
+  const logs = await getExperimentLogs();
+  const log = logs.find((l) => l.id === id);
+  if (log) {
+    Object.assign(log, update);
+    await chrome.storage.local.set({ [STORAGE_KEYS.EXPERIMENT_LOGS]: logs });
+  }
 }
 
 // ─── Snapshot History ─────────────────────────────────────────────────

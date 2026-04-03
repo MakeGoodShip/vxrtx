@@ -6,10 +6,12 @@ export const STORAGE_KEYS = {
   LOCKED_BOOKMARK_FOLDERS: "vxrtx_locked_bookmark_folders",
   SNAPSHOT_HISTORY: "vxrtx_snapshot_history",
   CORRECTIONS: "vxrtx_corrections",
+  EXPERIMENT_LOGS: "vxrtx_experiment_logs",
 } as const;
 
 export const MAX_SNAPSHOTS = 20;
 export const MAX_CORRECTIONS = 50;
+export const MAX_EXPERIMENT_LOGS = 200;
 
 export const TAB_GROUP_COLORS: readonly string[] = [
   "grey",

@@ -344,12 +344,23 @@ async function handleApplyTabSuggestions(
     bookmarks: [],
   });
 
+  const createdGroupIds: number[] = [];
   for (const group of result.groups) {
     const validTabIds = group.tabIds.filter(
       (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validTabIds.length === 0) continue;
-    await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
+    const groupId = await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
+    createdGroupIds.push(groupId);
+  }
+
+  // Collapse all newly created groups to reduce tab bar clutter
+  for (const groupId of createdGroupIds) {
+    try {
+      await chrome.tabGroups.update(groupId, { collapsed: true });
+    } catch {
+      // Group may have been removed between creation and collapse
+    }
   }
 
   if (result.stale.length > 0) {

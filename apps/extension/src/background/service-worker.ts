@@ -262,7 +262,10 @@ async function handleOrganizeTabs(
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
-      sendProgress?.(2, 4, `Sending ${tabs.length} tabs to AI...`);
+      const modelLabel = settings.aiModelProvider === "openrouter"
+        ? `OpenRouter (${settings.openrouterModel})`
+        : settings.aiModelProvider;
+      sendProgress?.(2, 4, `Sending ${tabs.length} tabs to ${modelLabel}...`);
       const provider = await getAIProvider();
       const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
       const aiResult = await provider.organizeTabs(tabs, g, onStatus);
@@ -601,7 +604,10 @@ async function handleOrganizeBookmarks(
   }
 
   try {
-    sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to AI...`);
+    const modelLabel = settings.aiModelProvider === "openrouter"
+      ? `OpenRouter (${settings.openrouterModel})`
+      : settings.aiModelProvider;
+    sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
     const provider = await getAIProvider();
     const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
     const aiResult = await provider.organizeBookmarks(bookmarks, g, onStatus);

@@ -101,37 +101,56 @@ export class OpenRouterProvider implements AIProvider {
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
     const timeout = aiTimeoutMs(itemCount);
+    const promptChars = userContent.length;
 
-    const response = await fetchWithTimeout(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-          "HTTP-Referer": "https://github.com/vxrtx",
-          "X-Title": "vxrtx",
+    console.log(`[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, timeout=${Math.round(timeout / 1000)}s`);
+    const startTime = Date.now();
+
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+            "HTTP-Referer": "https://github.com/vxrtx",
+            "X-Title": "vxrtx",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: [
+              { role: "system", content: SYSTEM_MESSAGE },
+              { role: "user", content: userContent },
+            ],
+            temperature: 0.0,
+          }),
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: "system", content: SYSTEM_MESSAGE },
-            { role: "user", content: userContent },
-          ],
-          temperature: 0.0,
-        }),
-      },
-      timeout,
-    );
+        timeout,
+      );
+    } catch (err) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error(`[vxrtx] OpenRouter fetch failed after ${elapsed}s:`, err);
+      throw err;
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     if (!response.ok) {
       const err = await response.text();
+      console.error(`[vxrtx] OpenRouter API error after ${elapsed}s: ${response.status}`, err);
       throw new Error(`OpenRouter API error (${response.status}): ${err}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error("No content in OpenRouter response");
+    if (!content) {
+      console.error(`[vxrtx] OpenRouter empty response after ${elapsed}s:`, JSON.stringify(data).slice(0, 500));
+      throw new Error("No content in OpenRouter response");
+    }
+
+    console.log(`[vxrtx] OpenRouter response: ${elapsed}s, ${content.length} chars`);
     return content;
   }
 }

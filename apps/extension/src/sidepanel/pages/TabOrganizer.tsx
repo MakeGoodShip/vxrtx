@@ -39,11 +39,12 @@ interface EditableGroup extends TabGroupSuggestion {
 
 interface PreviewState {
   groups: EditableGroup[];
+  allStale: number[];
   staleEnabled: Set<number>;
+  allDuplicates: number[][];
   duplicatesEnabled: Set<number>;
   tabs: Map<number, TabInfo>;
   reasoning?: string;
-  allDuplicates: number[][];
 }
 
 interface ChromeGroup {
@@ -108,6 +109,7 @@ export function TabOrganizer() {
         setPreview({
           groups: saved.groups,
           reasoning: saved.reasoning,
+          allStale: saved.allStale ?? [],
           allDuplicates: saved.allDuplicates,
           staleEnabled: new Set(saved.staleEnabled),
           duplicatesEnabled: new Set(saved.duplicatesEnabled),
@@ -207,13 +209,14 @@ export function TabOrganizer() {
 
         setPreview({
           groups: data.groups.map((g) => ({ ...g, enabled: true })),
+          allStale: data.stale,
           staleEnabled: new Set(data.stale),
+          allDuplicates: data.duplicates,
           duplicatesEnabled: new Set(
             data.duplicates.flatMap((set) => set.slice(1)),
           ),
           tabs: tabMap,
           reasoning: data.reasoning,
-          allDuplicates: data.duplicates,
         });
         setStatus("preview");
       } else {
@@ -353,6 +356,21 @@ export function TabOrganizer() {
         duplicatesEnabled.add(tabId);
       }
       return { ...prev, duplicatesEnabled };
+    });
+  }, []);
+
+  const toggleAllStale = useCallback((selectAll: boolean) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      return { ...prev, staleEnabled: selectAll ? new Set(prev.allStale) : new Set() };
+    });
+  }, []);
+
+  const toggleAllDuplicates = useCallback((selectAll: boolean) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      const all = prev.allDuplicates.flatMap((set) => set.slice(1));
+      return { ...prev, duplicatesEnabled: selectAll ? new Set(all) : new Set() };
     });
   }, []);
 
@@ -585,14 +603,22 @@ export function TabOrganizer() {
           )}
 
           {/* Stale tabs */}
-          {preview.staleEnabled.size > 0 && (
+          {preview.allStale.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-300">
-                Stale Tabs
-                <span className="ml-1 text-xs text-zinc-500">
-                  (close {preview.staleEnabled.size})
-                </span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-300">
+                  Stale Tabs
+                  <span className="ml-1 text-xs text-zinc-500">
+                    ({preview.staleEnabled.size}/{preview.allStale.length})
+                  </span>
+                </h3>
+                <button
+                  onClick={() => toggleAllStale(preview.staleEnabled.size < preview.allStale.length)}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                >
+                  {preview.staleEnabled.size < preview.allStale.length ? "Select all" : "Deselect all"}
+                </button>
+              </div>
               {Array.from(
                 new Set([
                   ...preview.staleEnabled,
@@ -619,13 +645,20 @@ export function TabOrganizer() {
           {/* Duplicates */}
           {preview.allDuplicates.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-300">
-                Duplicates
-                <span className="ml-1 text-xs text-zinc-500">
-                  ({preview.allDuplicates.length} set
-                  {preview.allDuplicates.length > 1 ? "s" : ""})
-                </span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-300">
+                  Duplicates
+                  <span className="ml-1 text-xs text-zinc-500">
+                    ({preview.allDuplicates.length} set{preview.allDuplicates.length > 1 ? "s" : ""})
+                  </span>
+                </h3>
+                <button
+                  onClick={() => toggleAllDuplicates(preview.duplicatesEnabled.size < preview.allDuplicates.flatMap((s) => s.slice(1)).length)}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                >
+                  {preview.duplicatesEnabled.size < preview.allDuplicates.flatMap((s) => s.slice(1)).length ? "Select all" : "Deselect all"}
+                </button>
+              </div>
               {preview.allDuplicates.map((dupSet, di) => (
                 <div
                   key={di}

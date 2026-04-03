@@ -861,6 +861,21 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
     });
   }
 
+  function toggleAllRemovals(selectAll: boolean) {
+    if (!data) return;
+    if (selectAll) {
+      const all = new Set<string>();
+      for (const group of data.duplicates) {
+        for (let i = 1; i < group.bookmarks.length; i++) {
+          all.add(group.bookmarks[i].id);
+        }
+      }
+      setRemovals(all);
+    } else {
+      setRemovals(new Set());
+    }
+  }
+
   return (
     <div className="space-y-4">
       {status === "idle" && (
@@ -906,11 +921,23 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
             </div>
           ) : (
             <>
-              <p className="text-xs text-zinc-500">
-                Found {data.duplicates.length} set
-                {data.duplicates.length > 1 ? "s" : ""} of duplicates.
-                First bookmark in each set is kept by default.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-500">
+                  Found {data.duplicates.length} set
+                  {data.duplicates.length > 1 ? "s" : ""} of duplicates.
+                </p>
+                {(() => {
+                  const allCount = data.duplicates.reduce((n, g) => n + g.bookmarks.length - 1, 0);
+                  return (
+                    <button
+                      onClick={() => toggleAllRemovals(removals.size < allCount)}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                    >
+                      {removals.size < allCount ? "Select all" : "Deselect all"}
+                    </button>
+                  );
+                })()}
+              </div>
 
               {data.duplicates.map((group, gi) => (
                 <div

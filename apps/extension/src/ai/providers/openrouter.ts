@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, type AIProvider, type TabOrganizationAIResult } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -96,7 +96,7 @@ export class OpenRouterProvider implements AIProvider {
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",

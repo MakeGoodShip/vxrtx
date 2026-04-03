@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, type AIProvider, type TabOrganizationAIResult } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -85,7 +85,7 @@ export class RelaxedProvider implements AIProvider {
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -120,7 +120,7 @@ export class RelaxedProvider implements AIProvider {
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

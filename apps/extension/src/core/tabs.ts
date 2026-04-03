@@ -15,6 +15,7 @@ export async function queryAllTabs(): Promise<TabInfo[]> {
       url: tab.url ?? "",
       favIconUrl: tab.favIconUrl,
       lastAccessed: tab.lastAccessed,
+      pinned: tab.pinned ?? false,
       groupId: tab.groupId ?? chrome.tabGroups?.TAB_GROUP_ID_NONE ?? -1,
       windowId: tab.windowId,
     }));

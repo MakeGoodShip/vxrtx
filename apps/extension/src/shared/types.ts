@@ -49,6 +49,7 @@ export interface TabInfo {
   url: string;
   favIconUrl?: string;
   lastAccessed?: number;
+  pinned: boolean;
   groupId: number;
   windowId: number;
 }

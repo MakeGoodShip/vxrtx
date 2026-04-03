@@ -252,16 +252,27 @@ async function handleOrganizeTabs(
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Filter out tabs in locked groups
+  // Filter out pinned tabs and tabs in locked groups
+  const pinnedTabs = allTabs.filter((t) => t.pinned);
+  const unpinnedTabs = allTabs.filter((t) => !t.pinned);
+
   const windowId = allTabs[0]?.windowId;
   const lockedGroups =
     windowId !== undefined ? await resolveLockedGroups(windowId) : [];
-  const lockedTabIds = getLockedTabIds(lockedGroups, allTabs);
-  const tabs = allTabs.filter((t) => !lockedTabIds.has(t.id));
+  const lockedTabIds = getLockedTabIds(lockedGroups, unpinnedTabs);
+  const tabs = unpinnedTabs.filter((t) => !lockedTabIds.has(t.id));
 
   let result: TabOrganizationResult;
 
-  if (settings.aiTier === "secure") {
+  if (tabs.length === 0) {
+    result = {
+      tabs: [],
+      groups: [],
+      stale: [],
+      duplicates: [],
+      reasoning: "No tabs to organize — all tabs are pinned or in locked groups.",
+    };
+  } else if (settings.aiTier === "secure") {
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
@@ -287,8 +298,11 @@ async function handleOrganizeTabs(
     }
   }
 
-  if (lockedGroups.length > 0) {
-    result.reasoning = `${lockedGroups.length} locked group(s) excluded. ${result.reasoning ?? ""}`;
+  const exclusions: string[] = [];
+  if (pinnedTabs.length > 0) exclusions.push(`${pinnedTabs.length} pinned tab(s) excluded`);
+  if (lockedGroups.length > 0) exclusions.push(`${lockedGroups.length} locked group(s) excluded`);
+  if (exclusions.length > 0) {
+    result.reasoning = `${exclusions.join(". ")}. ${result.reasoning ?? ""}`;
   }
 
   sendProgress?.(4, 4, "Done");
@@ -304,9 +318,11 @@ async function handleApplyTabSuggestions(
     return { success: false, error: "No window found" };
   }
 
-  // Resolve locked groups and build protected tab ID set
+  // Resolve locked groups and build protected tab ID set (includes pinned)
+  const pinnedTabIds = new Set(tabs.filter((t) => t.pinned).map((t) => t.id));
   const lockedGroups = await resolveLockedGroups(windowId);
   const lockedTabIds = getLockedTabIds(lockedGroups, tabs);
+  const protectedTabIds = new Set([...pinnedTabIds, ...lockedTabIds]);
 
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
@@ -330,7 +346,7 @@ async function handleApplyTabSuggestions(
 
   for (const group of result.groups) {
     const validTabIds = group.tabIds.filter(
-      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+      (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validTabIds.length === 0) continue;
     await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
@@ -338,7 +354,7 @@ async function handleApplyTabSuggestions(
 
   if (result.stale.length > 0) {
     const validStale = result.stale.filter(
-      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+      (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validStale.length > 0) await closeTabs(validStale);
   }
@@ -348,7 +364,7 @@ async function handleApplyTabSuggestions(
       const validDups = dupSet
         .slice(1)
         .filter(
-          (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+          (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
         );
       if (validDups.length > 0) await closeTabs(validDups);
     }

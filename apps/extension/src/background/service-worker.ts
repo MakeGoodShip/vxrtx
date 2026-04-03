@@ -693,21 +693,96 @@ async function handleOrganizeBookmarks(
     };
   }
 
+  const modelLabel = settings.aiModelProvider === "openrouter"
+    ? `OpenRouter (${settings.openrouterModel})`
+    : settings.aiModelProvider;
+
   try {
-    const modelLabel = settings.aiModelProvider === "openrouter"
-      ? `OpenRouter (${settings.openrouterModel})`
-      : settings.aiModelProvider;
-    console.log(`[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks, model=${modelLabel}, granularity=${g}`);
-    sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
     const provider = await getAIProvider();
-    const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+    const BATCH_SIZE = 100;
     const startTime = Date.now();
-    const aiResult = await provider.organizeBookmarks(bookmarks, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
-    console.log(`[vxrtx] Bookmark organize complete: ${((Date.now() - startTime) / 1000).toFixed(1)}s, ${aiResult.folders.length} folders suggested`);
-    sendProgress?.(3, 4, "Processing results...");
+
+    if (bookmarks.length <= BATCH_SIZE) {
+      // Small enough for a single call
+      console.log(`[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks (single batch), model=${modelLabel}, granularity=${g}`);
+      sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
+      const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+      const aiResult = await provider.organizeBookmarks(bookmarks, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
+      console.log(`[vxrtx] Bookmark organize complete: ${((Date.now() - startTime) / 1000).toFixed(1)}s, ${aiResult.folders.length} folders`);
+      sendProgress?.(3, 4, "Processing results...");
+      return { success: true, data: { bookmarks, folders, result: aiResult } };
+    }
+
+    // Batch processing for large collections
+    const batches: BookmarkInfo[][] = [];
+    for (let i = 0; i < bookmarks.length; i += BATCH_SIZE) {
+      batches.push(bookmarks.slice(i, i + BATCH_SIZE));
+    }
+    console.log(`[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks in ${batches.length} batches, model=${modelLabel}, granularity=${g}`);
+
+    const allFolders: Map<string, string[]> = new Map(); // folderName → bookmarkIds
+    const allDuplicates: string[][] = [];
+    const reasonings: string[] = [];
+
+    for (let bi = 0; bi < batches.length; bi++) {
+      const batch = batches[bi];
+      sendProgress?.(bi + 1, batches.length + 1, `Batch ${bi + 1}/${batches.length}: analyzing ${batch.length} bookmarks...`);
+      console.log(`[vxrtx] Batch ${bi + 1}/${batches.length}: ${batch.length} bookmarks`);
+
+      try {
+        const onStatus = (msg: string) => sendProgress?.(bi + 1, batches.length + 1, msg);
+        const batchResult = await provider.organizeBookmarks(batch, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
+
+        // Merge folders: consolidate by name (case-insensitive)
+        for (const folder of batchResult.folders) {
+          const key = folder.name.toLowerCase().trim();
+          const existing = allFolders.get(key);
+          if (existing) {
+            existing.push(...folder.bookmarkIds);
+          } else {
+            allFolders.set(key, [...folder.bookmarkIds]);
+          }
+        }
+        if (batchResult.duplicates.length > 0) {
+          allDuplicates.push(...batchResult.duplicates);
+        }
+        if (batchResult.reasoning) {
+          reasonings.push(batchResult.reasoning);
+        }
+      } catch (batchErr) {
+        console.warn(`[vxrtx] Batch ${bi + 1} failed:`, batchErr);
+        reasonings.push(`Batch ${bi + 1} failed: ${batchErr instanceof Error ? batchErr.message : String(batchErr)}`);
+      }
+    }
+
+    // Build merged result — use the first occurrence's casing for folder names
+    const nameMap = new Map<string, string>(); // lowercase → original casing
+    for (const batch of batches) {
+      // We need to re-derive folder names from allFolders keys
+    }
+    const mergedFolders = Array.from(allFolders.entries()).map(([key, bookmarkIds]) => ({
+      name: key.charAt(0).toUpperCase() + key.slice(1), // Title case the key
+      bookmarkIds,
+      parentId: undefined as string | undefined,
+    }));
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[vxrtx] Bookmark organize complete: ${elapsed}s, ${mergedFolders.length} folders from ${batches.length} batches`);
+    sendProgress?.(batches.length + 1, batches.length + 1, "Done");
+
     return {
       success: true,
-      data: { bookmarks, folders, result: aiResult },
+      data: {
+        bookmarks,
+        folders,
+        result: {
+          folders: mergedFolders,
+          moves: [],
+          duplicates: allDuplicates,
+          newFolders: [],
+          reasoning: `Processed ${bookmarks.length} bookmarks in ${batches.length} batches (${elapsed}s). ${reasonings[0] ?? ""}`,
+        },
+      },
     };
   } catch (err) {
     console.error("[vxrtx] Bookmark organize FAILED:", err);

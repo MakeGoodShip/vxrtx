@@ -88,14 +88,12 @@ export function App() {
         })}
       </nav>
 
-      {/* Content */}
+      {/* Content — all pages stay mounted to preserve state across tab switches */}
       <main className="flex-1 overflow-y-auto p-4">
-        <div className="animate-fade-in">
-          {page === "tabs" && <TabOrganizer />}
-          {page === "bookmarks" && <BookmarkOrganizer />}
-          {page === "snapshots" && <Snapshots />}
-          {page === "settings" && <Settings />}
-        </div>
+        <div className={page === "tabs" ? "animate-fade-in" : "hidden"}><TabOrganizer /></div>
+        <div className={page === "bookmarks" ? "animate-fade-in" : "hidden"}><BookmarkOrganizer /></div>
+        <div className={page === "snapshots" ? "animate-fade-in" : "hidden"}><Snapshots /></div>
+        <div className={page === "settings" ? "animate-fade-in" : "hidden"}><Settings /></div>
       </main>
     </div>
   );

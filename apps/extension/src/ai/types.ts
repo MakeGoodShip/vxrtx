@@ -5,6 +5,7 @@ import type {
   BookmarkOrganizationResult,
   LocationSuggestion,
   GroupingGranularity,
+  CorrectionSignal,
 } from "@/shared/types";
 
 export interface TabOrganizationAIResult {
@@ -16,11 +17,16 @@ export interface TabOrganizationAIResult {
 
 export type StatusCallback = (message: string) => void;
 
+export interface OrganizeTabsOptions {
+  granularity?: GroupingGranularity;
+  corrections?: CorrectionSignal[];
+  onStatus?: StatusCallback;
+}
+
 export interface AIProvider {
   organizeTabs(
     tabs: TabInfo[],
-    granularity?: GroupingGranularity,
-    onStatus?: StatusCallback,
+    options?: OrganizeTabsOptions,
   ): Promise<TabOrganizationAIResult>;
   organizeBookmarks(
     bookmarks: BookmarkInfo[],

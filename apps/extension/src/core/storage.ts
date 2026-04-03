@@ -1,5 +1,5 @@
 import { STORAGE_KEYS, MAX_SNAPSHOTS } from "@/shared/constants";
-import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder, type Snapshot } from "@/shared/types";
+import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder, type Snapshot, type CorrectionSignal } from "@/shared/types";
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
@@ -56,6 +56,17 @@ export async function saveLockedTabGroups(
   await chrome.storage.local.set({
     [STORAGE_KEYS.LOCKED_TAB_GROUPS]: groups,
   });
+}
+
+// ─── Correction Signals ──────────────────────────────────────────────
+
+export async function getCorrections(): Promise<CorrectionSignal[]> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.CORRECTIONS);
+  return (result[STORAGE_KEYS.CORRECTIONS] as CorrectionSignal[]) ?? [];
+}
+
+export async function saveCorrections(corrections: CorrectionSignal[]): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEYS.CORRECTIONS]: corrections });
 }
 
 // ─── Snapshot History ─────────────────────────────────────────────────

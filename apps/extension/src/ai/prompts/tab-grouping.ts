@@ -1,4 +1,5 @@
-import type { TabInfo, GroupingGranularity } from "@/shared/types";
+import type { TabInfo, GroupingGranularity, CorrectionSignal } from "@/shared/types";
+import { correctionsBlock } from "@/core/corrections";
 
 interface TabInput {
   id: number;
@@ -148,9 +149,15 @@ export interface PromptParts {
   dynamic: string;
 }
 
+export interface TabPromptOptions {
+  includeUrls: boolean;
+  granularity?: GroupingGranularity;
+  corrections?: CorrectionSignal[];
+}
+
 export function buildTabGroupingPrompt(
   tabs: TabInput[],
-  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+  options: TabPromptOptions,
 ): string {
   const parts = buildTabGroupingPromptParts(tabs, options);
   return `${parts.cached}\n\n${parts.dynamic}`;
@@ -158,11 +165,18 @@ export function buildTabGroupingPrompt(
 
 export function buildTabGroupingPromptParts(
   tabs: TabInput[],
-  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+  options: TabPromptOptions,
 ): PromptParts {
+  const dynamicSections = [
+    granularityInstruction(options.granularity ?? 3),
+  ];
+  const corrBlock = correctionsBlock(options.corrections ?? []);
+  if (corrBlock) dynamicSections.push(corrBlock);
+  dynamicSections.push(dataBlock(tabs, options));
+
   return {
     cached: [rules(), fewShotExamples(), schemaBlock()].join("\n\n"),
-    dynamic: [granularityInstruction(options.granularity ?? 3), dataBlock(tabs, options)].join("\n\n"),
+    dynamic: dynamicSections.join("\n\n"),
   };
 }
 

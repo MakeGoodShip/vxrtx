@@ -12,7 +12,7 @@ import type {
  * For now, returns an error directing users to choose a different tier.
  */
 export class LocalProvider implements AIProvider {
-  async organizeTabs(_tabs: TabInfo[], _granularity?: number): Promise<TabOrganizationAIResult> {
+  async organizeTabs(_tabs: TabInfo[]): Promise<TabOrganizationAIResult> {
     throw new Error(
       "Local AI not yet available. Use rule-based grouping or switch to Relaxed/YOLO tier in Settings.",
     );

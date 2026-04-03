@@ -3,6 +3,7 @@ import type {
   Settings,
   TabInfo,
   TabOrganizationResult,
+  TabGroupSuggestion,
   TabSnapshot,
   LockedTabGroup,
   LockedBookmarkFolder,
@@ -59,6 +60,8 @@ import {
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
+import { getCorrections, saveCorrections } from "@/core/storage";
+import { extractCorrections, mergeCorrections } from "@/core/corrections";
 
 // Open side panel when extension icon is clicked
 chrome.sidePanel
@@ -281,9 +284,12 @@ async function handleOrganizeTabs(
         : settings.aiModelProvider;
       sendProgress?.(2, 4, `Sending ${tabs.length} tabs to ${modelLabel}...`);
       const provider = await getAIProvider();
+      const corrections = await getCorrections();
       const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
-      const aiResult = await provider.organizeTabs(tabs, g, onStatus);
+      const aiResult = await provider.organizeTabs(tabs, { granularity: g, corrections, onStatus });
       sendProgress?.(3, 4, "Processing results...");
+      // Store original AI groups for correction diff at apply time
+      await setSessionData("vxrtx_ai_tab_groups", aiResult.groups);
       result = {
         tabs,
         groups: aiResult.groups,
@@ -379,6 +385,23 @@ async function handleApplyTabSuggestions(
         );
       if (validDups.length > 0) await closeTabs(validDups);
     }
+  }
+
+  // Extract and store correction signals from AI suggestion vs. user-applied diff
+  try {
+    const aiGroups = await getSessionData<TabGroupSuggestion[]>("vxrtx_ai_tab_groups");
+    if (aiGroups && aiGroups.length > 0) {
+      const newCorrections = extractCorrections(aiGroups, result.groups, tabs);
+      if (newCorrections.length > 0) {
+        const existing = await getCorrections();
+        const merged = mergeCorrections(existing, newCorrections);
+        await saveCorrections(merged);
+        console.log(`[vxrtx] Saved ${newCorrections.length} correction signal(s), ${merged.length} total stored`);
+      }
+      await clearSessionData("vxrtx_ai_tab_groups");
+    }
+  } catch (err) {
+    console.warn("[vxrtx] Failed to save corrections:", err);
   }
 
   return { success: true };

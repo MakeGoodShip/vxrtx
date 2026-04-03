@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -27,17 +27,19 @@ export class YoloProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity, onStatus?: StatusCallback): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+    const { granularity, corrections, onStatus } = options ?? {};
     const input = tabsToYoloInput(tabs);
+    const promptOpts = { includeUrls: true, granularity, corrections };
     if (this.modelProvider === "claude") {
-      const parts = buildTabGroupingPromptParts(input, { includeUrls: true, granularity });
+      const parts = buildTabGroupingPromptParts(input, promptOpts);
       return withRetry(
         (errorContext) => this.completeClaude(parts.cached, parts.dynamic, tabs.length, errorContext),
         parseTabOrganization,
         onStatus,
       );
     }
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: true, granularity });
+    const prompt = buildTabGroupingPrompt(input, promptOpts);
     return withRetry(
       (errorContext) => this.completeOpenAI(prompt, tabs.length, errorContext),
       parseTabOrganization,

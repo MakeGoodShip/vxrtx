@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -36,13 +36,15 @@ export class OpenRouterProvider implements AIProvider {
     private includeUrls: boolean,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity, onStatus?: StatusCallback): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+    const { granularity, corrections, onStatus } = options ?? {};
     const input = this.includeUrls
       ? tabsToYoloInput(tabs)
       : tabsToRelaxedInput(tabs);
     const prompt = buildTabGroupingPrompt(input, {
       includeUrls: this.includeUrls,
       granularity,
+      corrections,
     });
     return withRetry(
       (errorContext) => this.complete(prompt, tabs.length, errorContext),

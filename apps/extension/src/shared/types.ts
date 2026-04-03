@@ -136,6 +136,23 @@ export interface BookmarkDuplicateGroup {
   bookmarks: BookmarkInfo[];
 }
 
+// ─── Correction Signals ─────────────────────────────────────────────
+
+export interface CorrectionSignal {
+  /** Domain the correction applies to (e.g., "github.com") */
+  domain: string;
+  /** Group name the user prefers for this domain */
+  preferredGroup?: string;
+  /** Group name the user rejected for this domain */
+  rejectedGroup?: string;
+  /** Number of times this correction has been made */
+  count: number;
+  /** Timestamp of the most recent correction */
+  lastSeen: number;
+}
+
+// ─── Snapshots ──────────────────────────────────────────────────────
+
 export type SnapshotSource = "auto" | "manual";
 export type SnapshotType = "tabs" | "bookmarks" | "both";
 

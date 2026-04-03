@@ -7,11 +7,11 @@ const TAB_GROUP_COLORS: TabGroupColor[] = [
 ];
 
 const TabGroupSuggestionSchema = z.object({
-  name: z.string(),
+  name: z.string().trim().min(1, "Group name must not be empty"),
   color: z.string().transform((c) =>
     TAB_GROUP_COLORS.includes(c as TabGroupColor) ? c as TabGroupColor : "grey"
   ),
-  tabIds: z.array(z.number()),
+  tabIds: z.array(z.number()).min(1, "Group must contain at least one tab"),
 });
 
 const TabOrganizationSchema = z.object({
@@ -22,8 +22,8 @@ const TabOrganizationSchema = z.object({
 });
 
 const BookmarkFolderSchema = z.object({
-  name: z.string(),
-  bookmarkIds: z.array(z.string()),
+  name: z.string().trim().min(1, "Folder name must not be empty"),
+  bookmarkIds: z.array(z.string()).min(1, "Folder must contain at least one bookmark"),
 });
 
 const BookmarkOrganizationSchema = z.object({

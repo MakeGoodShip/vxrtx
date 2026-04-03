@@ -66,8 +66,9 @@ export async function createTabGroup(
     tabIds,
     createProperties: { windowId },
   });
+  const title = suggestion.name?.trim() || "Untitled Group";
   await chrome.tabGroups.update(groupId, {
-    title: suggestion.name,
+    title,
     color: suggestion.color as chrome.tabGroups.Color,
   });
   return groupId;

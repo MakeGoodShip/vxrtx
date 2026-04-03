@@ -65,7 +65,8 @@ export function selectClaudeModel(itemCount: number): string {
 /** Scale max_tokens by item count. Each item needs ~20 tokens in the output JSON. */
 export function aiMaxTokens(itemCount: number): number {
   // Base 2048 for schema overhead + reasoning, plus ~20 tokens per item for ID assignments
-  return Math.min(2048 + itemCount * 20, 16384);
+  // Capped at 8192 for broad model compatibility (some models via OpenRouter cap lower)
+  return Math.min(2048 + itemCount * 20, 8192);
 }
 
 /** Base timeout for LLM API calls. Scales with item count via aiTimeoutMs(). */

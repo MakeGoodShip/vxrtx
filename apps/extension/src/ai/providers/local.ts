@@ -20,7 +20,6 @@ export class LocalProvider implements AIProvider {
 
   async organizeBookmarks(
     _bookmarks: BookmarkInfo[],
-    _granularity?: number,
   ): Promise<BookmarkOrganizationResult> {
     throw new Error(
       "Local AI not yet available. Switch to Relaxed/YOLO tier in Settings.",

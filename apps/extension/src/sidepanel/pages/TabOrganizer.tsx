@@ -9,6 +9,7 @@ import type {
   GroupingGranularity,
 } from "@/shared/types";
 import { GranularitySlider } from "../components/GranularitySlider";
+import { GuidanceInput } from "../components/GuidanceInput";
 
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
 
@@ -75,10 +76,20 @@ export function TabOrganizer() {
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const elapsed = useElapsedTimer(status === "loading" || status === "applying");
 
+  // Guidance
+  const [guidance, setGuidance] = useState("");
+
   // Lock state
   const [chromeGroups, setChromeGroups] = useState<ChromeGroup[]>([]);
   const [lockedIds, setLockedIds] = useState<Set<number>>(new Set());
   const [dormantLocks, setDormantLocks] = useState<LockedTabGroup[]>([]);
+
+  // Load guidance from settings on mount
+  useEffect(() => {
+    sendMessage<void, import("@/shared/types").Settings>("get-settings").then((res) => {
+      if (res.success && res.data?.tabGuidance) setGuidance(res.data.tabGuidance);
+    });
+  }, []);
 
   // Load current Chrome groups + locked state on mount and when returning to idle
   useEffect(() => {
@@ -405,6 +416,7 @@ export function TabOrganizer() {
       {status === "idle" && !error && (
         <div className="space-y-3">
           <GranularitySlider value={granularity} onChange={setGranularity} />
+          <GuidanceInput type="tabs" value={guidance} onChange={setGuidance} />
           {chromeGroups.length > 0 ? (
             <p className="text-xs text-zinc-600">
               Locked groups are excluded from all organization.
@@ -856,15 +868,16 @@ function GroupCard({
             onBlur={() => setEditingName(false)}
             onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
             autoFocus
-            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
+            className="min-w-0 flex-1 rounded-md border border-brand-400/50 bg-zinc-800 px-2 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
           />
         ) : (
           <button
             onClick={() => setEditingName(true)}
-            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
+            className="group/name flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
             title="Click to rename"
           >
-            {group.name}
+            <span className="truncate">{group.name}</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 text-zinc-500"><path d="M5.5 1.5l3 3M1.5 8.5l.5-2L7 1.5l3 3-5 5-2 .5-.5-.5z" /></svg>
           </button>
         )}
 

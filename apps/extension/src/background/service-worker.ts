@@ -287,7 +287,7 @@ async function handleOrganizeTabs(
       const corrections = await getCorrections();
       const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
       const startTime = Date.now();
-      const aiResult = await provider.organizeTabs(tabs, { granularity: g, corrections, onStatus });
+      const aiResult = await provider.organizeTabs(tabs, { granularity: g, corrections, guidance: settings.tabGuidance, onStatus });
       const latencyMs = Date.now() - startTime;
       sendProgress?.(3, 4, "Processing results...");
       // Store original AI groups for correction diff at apply time
@@ -700,7 +700,7 @@ async function handleOrganizeBookmarks(
     sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
     const provider = await getAIProvider();
     const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
-    const aiResult = await provider.organizeBookmarks(bookmarks, g, onStatus);
+    const aiResult = await provider.organizeBookmarks(bookmarks, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
     sendProgress?.(3, 4, "Processing results...");
     return {
       success: true,

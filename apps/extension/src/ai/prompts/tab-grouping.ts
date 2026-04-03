@@ -153,6 +153,7 @@ export interface TabPromptOptions {
   includeUrls: boolean;
   granularity?: GroupingGranularity;
   corrections?: CorrectionSignal[];
+  guidance?: string;
 }
 
 export function buildTabGroupingPrompt(
@@ -170,6 +171,9 @@ export function buildTabGroupingPromptParts(
   const dynamicSections = [
     granularityInstruction(options.granularity ?? 3),
   ];
+  if (options.guidance?.trim()) {
+    dynamicSections.push(`USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when grouping the tabs below.`);
+  }
   const corrBlock = correctionsBlock(options.corrections ?? []);
   if (corrBlock) dynamicSections.push(corrBlock);
   dynamicSections.push(dataBlock(tabs, options));

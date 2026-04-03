@@ -10,6 +10,10 @@ export interface Settings {
   openrouterApiKey: string;
   openrouterModel: string;
   staleDaysThreshold: number;
+  /** Custom guidance for tab organization (injected into prompt) */
+  tabGuidance: string;
+  /** Custom guidance for bookmark organization (injected into prompt) */
+  bookmarkGuidance: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,6 +24,8 @@ export const DEFAULT_SETTINGS: Settings = {
   openrouterApiKey: "",
   openrouterModel: "anthropic/claude-sonnet-4",
   staleDaysThreshold: 7,
+  tabGuidance: "",
+  bookmarkGuidance: "",
 };
 
 export type GroupingGranularity = 1 | 2 | 3 | 4 | 5;

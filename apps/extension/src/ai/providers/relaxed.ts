@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -33,9 +33,9 @@ export class RelaxedProvider implements AIProvider {
   ) {}
 
   async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
-    const { granularity, corrections, onStatus } = options ?? {};
+    const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = tabsToRelaxedInput(tabs);
-    const promptOpts = { includeUrls: false, granularity, corrections };
+    const promptOpts = { includeUrls: false, granularity, corrections, guidance };
     if (this.modelProvider === "claude") {
       const parts = buildTabGroupingPromptParts(input, promptOpts);
       return withRetry(
@@ -54,20 +54,21 @@ export class RelaxedProvider implements AIProvider {
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
-    granularity?: GroupingGranularity,
-    onStatus?: StatusCallback,
+    options?: OrganizeBookmarksOptions,
   ): Promise<BookmarkOrganizationResult> {
+    const { granularity, guidance, onStatus } = options ?? {};
     const input = bookmarksToRelaxedInput(bookmarks);
+    const promptOpts = { includeUrls: false, granularity, guidance };
     let parsed;
     if (this.modelProvider === "claude") {
-      const parts = buildBookmarkOrganizePromptParts(input, { includeUrls: false, granularity });
+      const parts = buildBookmarkOrganizePromptParts(input, promptOpts);
       parsed = await withRetry(
         (errorContext) => this.completeClaude(parts.cached, parts.dynamic, bookmarks.length, errorContext),
         parseBookmarkOrganization,
         onStatus,
       );
     } else {
-      const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
+      const prompt = buildBookmarkOrganizePrompt(input, promptOpts);
       parsed = await withRetry(
         (errorContext) => this.completeOpenAI(prompt, bookmarks.length, errorContext),
         parseBookmarkOrganization,

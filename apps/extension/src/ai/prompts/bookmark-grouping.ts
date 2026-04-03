@@ -127,9 +127,15 @@ export interface PromptParts {
   dynamic: string;
 }
 
+export interface BookmarkPromptOptions {
+  includeUrls: boolean;
+  granularity?: GroupingGranularity;
+  guidance?: string;
+}
+
 export function buildBookmarkOrganizePrompt(
   bookmarks: BookmarkInput[],
-  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+  options: BookmarkPromptOptions,
 ): string {
   const parts = buildBookmarkOrganizePromptParts(bookmarks, options);
   return `${parts.cached}\n\n${parts.dynamic}`;
@@ -137,11 +143,19 @@ export function buildBookmarkOrganizePrompt(
 
 export function buildBookmarkOrganizePromptParts(
   bookmarks: BookmarkInput[],
-  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+  options: BookmarkPromptOptions,
 ): PromptParts {
+  const dynamicSections = [
+    granularityInstruction(options.granularity ?? 3),
+  ];
+  if (options.guidance?.trim()) {
+    dynamicSections.push(`USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when organizing the bookmarks below.`);
+  }
+  dynamicSections.push(dataBlock(bookmarks, options));
+
   return {
     cached: [rules(), fewShotExamples(), schemaBlock()].join("\n\n"),
-    dynamic: [granularityInstruction(options.granularity ?? 3), dataBlock(bookmarks, options)].join("\n\n"),
+    dynamic: dynamicSections.join("\n\n"),
   };
 }
 

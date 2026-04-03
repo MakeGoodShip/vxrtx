@@ -20,6 +20,13 @@ export type StatusCallback = (message: string) => void;
 export interface OrganizeTabsOptions {
   granularity?: GroupingGranularity;
   corrections?: CorrectionSignal[];
+  guidance?: string;
+  onStatus?: StatusCallback;
+}
+
+export interface OrganizeBookmarksOptions {
+  granularity?: GroupingGranularity;
+  guidance?: string;
   onStatus?: StatusCallback;
 }
 
@@ -30,8 +37,7 @@ export interface AIProvider {
   ): Promise<TabOrganizationAIResult>;
   organizeBookmarks(
     bookmarks: BookmarkInfo[],
-    granularity?: GroupingGranularity,
-    onStatus?: StatusCallback,
+    options?: OrganizeBookmarksOptions,
   ): Promise<BookmarkOrganizationResult>;
   suggestBookmarkLocation(
     bookmark: BookmarkInfo,

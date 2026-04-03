@@ -10,6 +10,7 @@ import type {
   GroupingGranularity,
 } from "@/shared/types";
 import { GranularitySlider } from "../components/GranularitySlider";
+import { GuidanceInput } from "../components/GuidanceInput";
 
 type Mode = "menu" | "organize" | "locate" | "duplicates" | "cleanup";
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
@@ -275,8 +276,16 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [granularity, setGranularity] = useState<GroupingGranularity>(3);
+  const [guidance, setGuidance] = useState("");
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const elapsed = useElapsedTimer(status === "loading" || status === "applying");
+
+  // Load guidance from settings
+  useEffect(() => {
+    sendMessage<void, import("@/shared/types").Settings>("get-settings").then((res) => {
+      if (res.success && res.data?.bookmarkGuidance) setGuidance(res.data.bookmarkGuidance);
+    });
+  }, []);
 
   // Persist preview for tab switching
   useEffect(() => {
@@ -325,6 +334,19 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
       setError(String(err));
       setStatus("idle");
     }
+  }
+
+  function renameFolderSuggestion(index: number, name: string) {
+    if (!data) return;
+    setData({
+      ...data,
+      result: {
+        ...data.result,
+        folders: data.result.folders.map((f, i) =>
+          i === index ? { ...f, name } : f,
+        ),
+      },
+    });
   }
 
   async function handleApply() {
@@ -393,6 +415,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
             AI will analyze your bookmarks and suggest a new folder structure.
           </p>
           <GranularitySlider value={granularity} onChange={setGranularity} />
+          <GuidanceInput type="bookmarks" value={guidance} onChange={setGuidance} />
           <button
             onClick={handleAnalyze}
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
@@ -468,53 +491,22 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
                 Suggested Folders
               </h3>
               {data.result.folders.map((folder, i) => (
-                <div
+                <BookmarkFolderCard
                   key={i}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    enabledFolders.has(i)
-                      ? "border-zinc-700 bg-zinc-900"
-                      : "border-zinc-800/50 bg-zinc-900/30 opacity-50"
-                  }`}
-                >
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={enabledFolders.has(i)}
-                      onChange={() => {
-                        setEnabledFolders((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i);
-                          else next.add(i);
-                          return next;
-                        });
-                      }}
-                      className="h-3.5 w-3.5 accent-brand-400"
-                    />
-                    <span className="text-sm font-medium">{folder.name}</span>
-                    <span className="text-xs text-zinc-500">
-                      {folder.bookmarkIds.length} bookmark
-                      {folder.bookmarkIds.length !== 1 ? "s" : ""}
-                    </span>
-                  </label>
-                  <div className="mt-2 space-y-0.5 pl-6">
-                    {folder.bookmarkIds.slice(0, 5).map((bmId) => {
-                      const bm = bookmarkMap.get(bmId);
-                      return bm ? (
-                        <div
-                          key={bmId}
-                          className="truncate text-xs text-zinc-500"
-                        >
-                          {bm.title}
-                        </div>
-                      ) : null;
-                    })}
-                    {folder.bookmarkIds.length > 5 && (
-                      <div className="text-xs text-zinc-600">
-                        +{folder.bookmarkIds.length - 5} more
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  folder={folder}
+                  index={i}
+                  enabled={enabledFolders.has(i)}
+                  onToggle={() => {
+                    setEnabledFolders((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(i)) next.delete(i);
+                      else next.add(i);
+                      return next;
+                    });
+                  }}
+                  onRename={(name) => renameFolderSuggestion(i, name)}
+                  bookmarkMap={bookmarkMap}
+                />
               ))}
 
               <div className="flex items-center gap-2 border-t border-zinc-800 pt-3">
@@ -1119,6 +1111,84 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Bookmark Folder Card ───────────────────────────────────────────
+
+function BookmarkFolderCard({
+  folder,
+  index,
+  enabled,
+  onToggle,
+  onRename,
+  bookmarkMap,
+}: {
+  folder: { name: string; bookmarkIds: string[] };
+  index: number;
+  enabled: boolean;
+  onToggle: () => void;
+  onRename: (name: string) => void;
+  bookmarkMap: Map<string, BookmarkInfo>;
+}) {
+  const [editingName, setEditingName] = useState(false);
+
+  return (
+    <div
+      className={`rounded-lg border p-3 transition-colors ${
+        enabled
+          ? "border-zinc-700 bg-zinc-900"
+          : "border-zinc-800/50 bg-zinc-900/30 opacity-50"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={onToggle}
+          className="h-3.5 w-3.5 accent-brand-400"
+        />
+        {editingName ? (
+          <input
+            type="text"
+            value={folder.name}
+            onChange={(e) => onRename(e.target.value)}
+            onBlur={() => setEditingName(false)}
+            onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
+            autoFocus
+            className="min-w-0 flex-1 rounded-md border border-brand-400/50 bg-zinc-800 px-2 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
+          />
+        ) : (
+          <button
+            onClick={() => setEditingName(true)}
+            className="group/name flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
+            title="Click to rename"
+          >
+            <span className="truncate">{folder.name}</span>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 text-zinc-500"><path d="M5.5 1.5l3 3M1.5 8.5l.5-2L7 1.5l3 3-5 5-2 .5-.5-.5z" /></svg>
+          </button>
+        )}
+        <span className="shrink-0 text-xs text-zinc-500">
+          {folder.bookmarkIds.length} bookmark
+          {folder.bookmarkIds.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="mt-2 space-y-0.5 pl-6">
+        {folder.bookmarkIds.slice(0, 5).map((bmId) => {
+          const bm = bookmarkMap.get(bmId);
+          return bm ? (
+            <div key={bmId} className="truncate text-xs text-zinc-500">
+              {bm.title}
+            </div>
+          ) : null;
+        })}
+        {folder.bookmarkIds.length > 5 && (
+          <div className="text-xs text-zinc-600">
+            +{folder.bookmarkIds.length - 5} more
+          </div>
+        )}
+      </div>
     </div>
   );
 }

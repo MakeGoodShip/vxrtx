@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -37,7 +37,7 @@ export class OpenRouterProvider implements AIProvider {
   ) {}
 
   async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
-    const { granularity, corrections, onStatus } = options ?? {};
+    const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = this.includeUrls
       ? tabsToYoloInput(tabs)
       : tabsToRelaxedInput(tabs);
@@ -45,6 +45,7 @@ export class OpenRouterProvider implements AIProvider {
       includeUrls: this.includeUrls,
       granularity,
       corrections,
+      guidance,
     });
     return withRetry(
       (errorContext) => this.complete(prompt, tabs.length, errorContext),
@@ -55,15 +56,16 @@ export class OpenRouterProvider implements AIProvider {
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
-    granularity?: GroupingGranularity,
-    onStatus?: StatusCallback,
+    options?: OrganizeBookmarksOptions,
   ): Promise<BookmarkOrganizationResult> {
+    const { granularity, guidance, onStatus } = options ?? {};
     const input = this.includeUrls
       ? bookmarksToYoloInput(bookmarks)
       : bookmarksToRelaxedInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, {
       includeUrls: this.includeUrls,
       granularity,
+      guidance,
     });
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, bookmarks.length, errorContext),

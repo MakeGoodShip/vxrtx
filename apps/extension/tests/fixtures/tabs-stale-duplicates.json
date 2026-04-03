@@ -1,0 +1,18 @@
+{
+  "description": "Edge case: stale tabs and duplicate URLs",
+  "input": [
+    { "id": 20, "title": "Google Docs - Q3 Planning", "lastAccessed": 1000 },
+    { "id": 21, "title": "Figma - Dashboard v2" },
+    { "id": 22, "title": "Figma - Dashboard v2" },
+    { "id": 23, "title": "Linear - ENG-301" },
+    { "id": 24, "title": "ChatGPT", "lastAccessed": 500 },
+    { "id": 25, "title": "MDN: CSS Grid Layout" }
+  ],
+  "validResponse": "{\"groups\":[{\"name\":\"Design\",\"color\":\"pink\",\"tabIds\":[21,22]},{\"name\":\"Engineering\",\"color\":\"purple\",\"tabIds\":[23]},{\"name\":\"Reference\",\"color\":\"grey\",\"tabIds\":[25]}],\"stale\":[20,24],\"duplicates\":[[21,22]],\"reasoning\":\"Stale: Q3 Planning and ChatGPT. Duplicate: Figma tabs. Grouped remaining by function.\"}",
+  "goldenLabels": {
+    "21": "Design",
+    "22": "Design",
+    "23": "Engineering",
+    "25": "Reference"
+  }
+}

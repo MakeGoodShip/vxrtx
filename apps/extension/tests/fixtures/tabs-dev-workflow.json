@@ -1,0 +1,24 @@
+{
+  "description": "Developer workflow: GitHub PRs, docs, IDE, project management",
+  "input": [
+    { "id": 1, "title": "GitHub - vxrtx: Pull request #12" },
+    { "id": 2, "title": "TypeScript Handbook - Generics" },
+    { "id": 3, "title": "GitHub - vxrtx: Actions workflow runs" },
+    { "id": 4, "title": "Linear - Sprint 5 Board" },
+    { "id": 5, "title": "MDN: Promise.allSettled()" },
+    { "id": 6, "title": "Stack Overflow: Chrome extension service worker" },
+    { "id": 7, "title": "Figma - Extension Redesign" },
+    { "id": 8, "title": "GitHub - vxrtx: Issue #34" }
+  ],
+  "validResponse": "{\"groups\":[{\"name\":\"vxrtx Dev\",\"color\":\"purple\",\"tabIds\":[1,3,8]},{\"name\":\"Documentation\",\"color\":\"blue\",\"tabIds\":[2,5,6]},{\"name\":\"Project Mgmt\",\"color\":\"yellow\",\"tabIds\":[4]},{\"name\":\"Design\",\"color\":\"pink\",\"tabIds\":[7]}],\"stale\":[],\"duplicates\":[],\"reasoning\":\"Grouped vxrtx GitHub tabs together, docs and references together, PM and design separate.\"}",
+  "goldenLabels": {
+    "1": "vxrtx Dev",
+    "2": "Documentation",
+    "3": "vxrtx Dev",
+    "4": "Project Mgmt",
+    "5": "Documentation",
+    "6": "Documentation",
+    "7": "Design",
+    "8": "vxrtx Dev"
+  }
+}

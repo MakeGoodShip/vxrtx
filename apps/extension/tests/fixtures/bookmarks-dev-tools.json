@@ -1,0 +1,20 @@
+{
+  "description": "Developer bookmarks: docs, repos, tools",
+  "input": [
+    { "id": "a1", "title": "TypeScript Handbook" },
+    { "id": "a2", "title": "GitHub - vxrtx" },
+    { "id": "a3", "title": "MDN: Array.prototype.map()" },
+    { "id": "a4", "title": "VS Code Keyboard Shortcuts" },
+    { "id": "a5", "title": "Tailwind CSS Docs" },
+    { "id": "a6", "title": "GitHub - react" }
+  ],
+  "validResponse": "{\"folders\":[{\"name\":\"Documentation\",\"bookmarkIds\":[\"a1\",\"a3\",\"a5\"]},{\"name\":\"GitHub Repos\",\"bookmarkIds\":[\"a2\",\"a6\"]},{\"name\":\"Dev Tools\",\"bookmarkIds\":[\"a4\"]}],\"duplicates\":[],\"reasoning\":\"Docs grouped, repos grouped, editor tools separate.\"}",
+  "goldenLabels": {
+    "a1": "Documentation",
+    "a2": "GitHub Repos",
+    "a3": "Documentation",
+    "a4": "Dev Tools",
+    "a5": "Documentation",
+    "a6": "GitHub Repos"
+  }
+}

@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -107,7 +107,8 @@ export class OpenRouterProvider implements AIProvider {
     const timeout = aiTimeoutMs(itemCount);
     const promptChars = userContent.length;
 
-    console.log(`[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, timeout=${Math.round(timeout / 1000)}s`);
+    const maxTokens = aiMaxTokens(itemCount);
+    console.log(`[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, max_tokens=${maxTokens}, timeout=${Math.round(timeout / 1000)}s`);
     const startTime = Date.now();
 
     let response: Response;
@@ -129,6 +130,7 @@ export class OpenRouterProvider implements AIProvider {
               { role: "user", content: userContent },
             ],
             temperature: 0.0,
+            max_tokens: maxTokens,
           }),
         },
         timeout,

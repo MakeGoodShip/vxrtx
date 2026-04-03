@@ -697,17 +697,20 @@ async function handleOrganizeBookmarks(
     const modelLabel = settings.aiModelProvider === "openrouter"
       ? `OpenRouter (${settings.openrouterModel})`
       : settings.aiModelProvider;
+    console.log(`[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks, model=${modelLabel}, granularity=${g}`);
     sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
     const provider = await getAIProvider();
     const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+    const startTime = Date.now();
     const aiResult = await provider.organizeBookmarks(bookmarks, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
+    console.log(`[vxrtx] Bookmark organize complete: ${((Date.now() - startTime) / 1000).toFixed(1)}s, ${aiResult.folders.length} folders suggested`);
     sendProgress?.(3, 4, "Processing results...");
     return {
       success: true,
       data: { bookmarks, folders, result: aiResult },
     };
   } catch (err) {
-    console.warn("AI bookmark organization failed:", err);
+    console.error("[vxrtx] Bookmark organize FAILED:", err);
     return {
       success: true,
       data: {

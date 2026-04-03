@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -129,7 +129,7 @@ export class YoloProvider implements AIProvider {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: aiMaxTokens(itemCount),
         temperature: 0.0,
         system: SYSTEM_MESSAGE,
         messages: [{ role: "user", content: userBlocks }],
@@ -168,6 +168,7 @@ export class YoloProvider implements AIProvider {
           { role: "user", content: userContent },
         ],
         temperature: 0.0,
+        max_tokens: aiMaxTokens(itemCount),
         response_format: { type: "json_object" },
       }),
     }, timeout);

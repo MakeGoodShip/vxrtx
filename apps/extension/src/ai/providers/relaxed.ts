@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -123,7 +123,8 @@ export class RelaxedProvider implements AIProvider {
 
     const model = selectClaudeModel(itemCount);
     const timeout = aiTimeoutMs(itemCount);
-    console.log(`[vxrtx] Claude request: model=${model}, items=${itemCount}, timeout=${Math.round(timeout / 1000)}s`);
+    const totalChars = cachedContent.length + (dynamicText?.length ?? 0);
+    console.log(`[vxrtx] Claude request: model=${model}, items=${itemCount}, prompt=${totalChars} chars, timeout=${Math.round(timeout / 1000)}s`);
     const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -134,7 +135,7 @@ export class RelaxedProvider implements AIProvider {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: aiMaxTokens(itemCount),
         temperature: 0.0,
         system: SYSTEM_MESSAGE,
         messages: [{ role: "user", content: userBlocks }],
@@ -159,6 +160,7 @@ export class RelaxedProvider implements AIProvider {
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
     const timeout = aiTimeoutMs(itemCount);
+    console.log(`[vxrtx] OpenAI request: model=gpt-4o-mini, items=${itemCount}, prompt=${userContent.length} chars, timeout=${Math.round(timeout / 1000)}s`);
 
     const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -173,6 +175,7 @@ export class RelaxedProvider implements AIProvider {
           { role: "user", content: userContent },
         ],
         temperature: 0.0,
+        max_tokens: aiMaxTokens(itemCount),
         response_format: { type: "json_object" },
       }),
     }, timeout);

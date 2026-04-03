@@ -62,6 +62,12 @@ export function selectClaudeModel(itemCount: number): string {
   return itemCount <= CLAUDE_ROUTING_THRESHOLD ? CLAUDE_HAIKU : CLAUDE_SONNET;
 }
 
+/** Scale max_tokens by item count. Each item needs ~20 tokens in the output JSON. */
+export function aiMaxTokens(itemCount: number): number {
+  // Base 2048 for schema overhead + reasoning, plus ~20 tokens per item for ID assignments
+  return Math.min(2048 + itemCount * 20, 16384);
+}
+
 /** Base timeout for LLM API calls. Scales with item count via aiTimeoutMs(). */
 const AI_FETCH_BASE_TIMEOUT_MS = 30_000;
 const AI_FETCH_PER_ITEM_MS = 250;

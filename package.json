@@ -18,7 +18,7 @@
     "build:docs": "pnpm --filter @vxrtx/docs build"
   },
   "devDependencies": {
-    "turbo": "^2.5.4"
+    "turbo": "^2.9.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

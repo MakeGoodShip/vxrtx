@@ -72,6 +72,7 @@ chrome.runtime.onMessage.addListener(
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: MessageResponse) => void,
   ) => {
+    console.log(`[vxrtx] Message received: action="${message.action}"`);
     handleMessage(message).then(sendResponse).catch((err) => {
       sendResponse({ success: false, error: String(err) });
     });
@@ -83,9 +84,11 @@ chrome.runtime.onMessage.addListener(
 type ProgressSender = (current: number, total: number, msg: string) => void;
 
 chrome.runtime.onConnect.addListener((port) => {
+  console.log(`[vxrtx] Port connected: "${port.name}"`);
   if (port.name !== "long-running") return;
 
   port.onMessage.addListener(async (message: Message) => {
+    console.log(`[vxrtx] Port message received: action="${message.action}"`);
     const sendProgress: ProgressSender = (current, total, msg) => {
       try {
         port.postMessage({

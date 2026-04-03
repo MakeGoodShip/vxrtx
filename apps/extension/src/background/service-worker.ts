@@ -240,7 +240,7 @@ async function handleOrganizeTabs(
   const allTabs = await queryAllTabs();
   const g = (granularity ?? 3) as import("@/shared/types").GroupingGranularity;
 
-  sendProgress?.(0, 1, `Analyzing ${allTabs.length} tabs...`);
+  sendProgress?.(1, 4, `Preparing ${allTabs.length} tabs...`);
 
   const snapshot: TabSnapshot[] = allTabs.map((t) => ({
     id: t.id,
@@ -262,8 +262,11 @@ async function handleOrganizeTabs(
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
+      sendProgress?.(2, 4, `Sending ${tabs.length} tabs to AI...`);
       const provider = await getAIProvider();
-      const aiResult = await provider.organizeTabs(tabs, g);
+      const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+      const aiResult = await provider.organizeTabs(tabs, g, onStatus);
+      sendProgress?.(3, 4, "Processing results...");
       result = {
         tabs,
         groups: aiResult.groups,
@@ -282,6 +285,7 @@ async function handleOrganizeTabs(
     result.reasoning = `${lockedGroups.length} locked group(s) excluded. ${result.reasoning ?? ""}`;
   }
 
+  sendProgress?.(4, 4, "Done");
   return { success: true, data: result };
 }
 
@@ -575,7 +579,7 @@ async function handleOrganizeBookmarks(
   const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
   const bookmarks = allBookmarks.filter((b) => !lockedBookmarkIds.has(b.id));
 
-  sendProgress?.(0, 1, `Analyzing ${bookmarks.length} bookmarks...`);
+  sendProgress?.(1, 4, `Preparing ${bookmarks.length} bookmarks...`);
 
   if (settings.aiTier === "secure") {
     // Rule-based: no restructuring, just return current state
@@ -597,8 +601,11 @@ async function handleOrganizeBookmarks(
   }
 
   try {
+    sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to AI...`);
     const provider = await getAIProvider();
-    const aiResult = await provider.organizeBookmarks(bookmarks, g);
+    const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+    const aiResult = await provider.organizeBookmarks(bookmarks, g, onStatus);
+    sendProgress?.(3, 4, "Processing results...");
     return {
       success: true,
       data: { bookmarks, folders, result: aiResult },

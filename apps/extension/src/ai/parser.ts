@@ -63,9 +63,12 @@ function isRetryableParseError(err: unknown): boolean {
 export async function withRetry<T>(
   completeFn: (errorContext?: string) => Promise<string>,
   parseFn: (raw: string) => T,
+  onStatus?: (message: string) => void,
 ): Promise<T> {
   // First attempt: let API errors propagate, only catch retryable parse/validation failures
+  onStatus?.("Waiting for AI response...");
   const raw = await completeFn();
+  onStatus?.("Processing AI response...");
   try {
     return parseFn(raw);
   } catch (parseErr) {
@@ -73,9 +76,11 @@ export async function withRetry<T>(
       throw parseErr;
     }
     // Parse failed — retry with error context
+    onStatus?.("Response invalid, retrying...");
     const errMsg = (parseErr instanceof Error ? parseErr.message : String(parseErr)).slice(0, 500);
     const errorContext = `Your previous response failed validation: ${errMsg}. Return ONLY valid JSON matching the schema exactly.`;
     const retryRaw = await completeFn(errorContext);
+    onStatus?.("Processing retry response...");
     try {
       return parseFn(retryRaw);
     } catch (secondErr) {

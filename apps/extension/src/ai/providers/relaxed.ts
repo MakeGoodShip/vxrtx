@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -30,24 +30,27 @@ export class RelaxedProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity, onStatus?: StatusCallback): Promise<TabOrganizationAIResult> {
     const input = tabsToRelaxedInput(tabs);
     const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity });
     return withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseTabOrganization,
+      onStatus,
     );
   }
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
     granularity?: GroupingGranularity,
+    onStatus?: StatusCallback,
   ): Promise<BookmarkOrganizationResult> {
     const input = bookmarksToRelaxedInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseBookmarkOrganization,
+      onStatus,
     );
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
@@ -61,6 +64,7 @@ export class RelaxedProvider implements AIProvider {
   async suggestBookmarkLocation(
     bookmark: BookmarkInfo,
     folders: { id: string; path: string }[],
+    onStatus?: StatusCallback,
   ): Promise<LocationSuggestion[]> {
     const input = { id: bookmark.id, title: bookmark.title };
     const prompt = buildBookmarkLocationPrompt(input, folders, {
@@ -69,6 +73,7 @@ export class RelaxedProvider implements AIProvider {
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseBookmarkLocation,
+      onStatus,
     );
     return parsed.suggestions;
   }

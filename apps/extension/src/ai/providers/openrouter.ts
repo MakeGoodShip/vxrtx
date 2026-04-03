@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -36,7 +36,7 @@ export class OpenRouterProvider implements AIProvider {
     private includeUrls: boolean,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
+  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity, onStatus?: StatusCallback): Promise<TabOrganizationAIResult> {
     const input = this.includeUrls
       ? tabsToYoloInput(tabs)
       : tabsToRelaxedInput(tabs);
@@ -47,12 +47,14 @@ export class OpenRouterProvider implements AIProvider {
     return withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseTabOrganization,
+      onStatus,
     );
   }
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
     granularity?: GroupingGranularity,
+    onStatus?: StatusCallback,
   ): Promise<BookmarkOrganizationResult> {
     const input = this.includeUrls
       ? bookmarksToYoloInput(bookmarks)
@@ -64,6 +66,7 @@ export class OpenRouterProvider implements AIProvider {
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseBookmarkOrganization,
+      onStatus,
     );
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
@@ -77,6 +80,7 @@ export class OpenRouterProvider implements AIProvider {
   async suggestBookmarkLocation(
     bookmark: BookmarkInfo,
     folders: { id: string; path: string }[],
+    onStatus?: StatusCallback,
   ): Promise<LocationSuggestion[]> {
     const input = this.includeUrls
       ? { id: bookmark.id, title: bookmark.title, url: bookmark.url }
@@ -87,6 +91,7 @@ export class OpenRouterProvider implements AIProvider {
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseBookmarkLocation,
+      onStatus,
     );
     return parsed.suggestions;
   }

@@ -51,13 +51,13 @@ export function sendMessage<TReq = unknown, TRes = unknown>(
   });
 }
 
-/** Safety timeout for long-running operations (90 seconds). */
-const LONG_RUNNING_TIMEOUT_MS = 90_000;
+/** Timeout for silence between progress updates (45 seconds). Resets on each progress message. */
+const SILENCE_TIMEOUT_MS = 45_000;
 
 /**
  * Send a message over a port for long-running operations.
  * Avoids the MV3 message channel timeout and enables progress updates.
- * Includes a safety timeout to prevent indefinite hangs.
+ * Includes a silence timeout — if no progress or result arrives within 45s, assumes hung.
  */
 export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
   action: MessageAction,
@@ -67,21 +67,28 @@ export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
   return new Promise((resolve) => {
     const port = chrome.runtime.connect({ name: "long-running" });
     let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        port.disconnect();
-        resolve({
-          success: false,
-          error: "Operation timed out. The AI provider may be unreachable or the request was too large.",
-        } as MessageResponse<TRes>);
-      }
-    }, LONG_RUNNING_TIMEOUT_MS);
+    function resetTimer() {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          port.disconnect();
+          resolve({
+            success: false,
+            error: "Operation timed out — no response from AI provider. Check your API key and network connection.",
+          } as MessageResponse<TRes>);
+        }
+      }, SILENCE_TIMEOUT_MS);
+    }
+
+    resetTimer();
 
     port.onMessage.addListener(
       (msg: MessageResponse<TRes> | ProgressUpdate) => {
         if ("type" in msg && msg.type === "progress") {
+          resetTimer(); // Activity — keep waiting
           onProgress?.(msg as ProgressUpdate);
         } else if (!settled) {
           settled = true;

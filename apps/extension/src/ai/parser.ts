@@ -43,10 +43,17 @@ const BookmarkLocationSchema = z.object({
   suggestions: z.array(LocationSuggestionSchema),
 });
 
+class JsonExtractionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "JsonExtractionError";
+  }
+}
+
 function isRetryableParseError(err: unknown): boolean {
   return err instanceof SyntaxError
     || err instanceof z.ZodError
-    || (err instanceof Error && err.message === "No valid JSON found in AI response");
+    || err instanceof JsonExtractionError;
 }
 
 /**
@@ -114,6 +121,6 @@ function extractJson(text: string): unknown {
       return JSON.parse(text.slice(firstBrace, lastBrace + 1));
     }
 
-    throw new Error("No valid JSON found in AI response");
+    throw new JsonExtractionError("No valid JSON found in AI response");
   }
 }

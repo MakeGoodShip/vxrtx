@@ -34,9 +34,10 @@ describe("extractCorrections", () => {
     ];
 
     const corrections = extractCorrections(aiGroups, appliedGroups, tabs);
-    expect(corrections).toHaveLength(1);
-    expect(corrections[0].domain).toBe("github.com");
-    expect(corrections[0].preferredGroup).toBe("Dev");
+    const explicit = corrections.filter((c) => c.source === "correction");
+    expect(explicit).toHaveLength(1);
+    expect(explicit[0].domain).toBe("github.com");
+    expect(explicit[0].preferredGroup).toBe("Dev");
   });
 
   it("detects when user disables a group", () => {
@@ -50,17 +51,29 @@ describe("extractCorrections", () => {
     ];
 
     const corrections = extractCorrections(aiGroups, appliedGroups, tabs);
-    expect(corrections).toHaveLength(1);
-    expect(corrections[0].domain).toBe("twitter.com");
-    expect(corrections[0].rejectedGroup).toBe("Social");
+    const rejections = corrections.filter((c) => c.rejectedGroup);
+    expect(rejections).toHaveLength(1);
+    expect(rejections[0].domain).toBe("twitter.com");
+    expect(rejections[0].rejectedGroup).toBe("Social");
   });
 
-  it("returns empty for identical suggestions", () => {
+  it("captures acceptance signals for unchanged groupings", () => {
     const groups: TabGroupSuggestion[] = [
       { name: "Dev", color: "blue", tabIds: [1, 2] },
     ];
-    const corrections = extractCorrections(groups, groups, tabs);
-    expect(corrections).toHaveLength(0);
+    const signals = extractCorrections(groups, groups, tabs);
+    const acceptances = signals.filter((c) => c.source === "acceptance");
+    expect(acceptances).toHaveLength(1);
+    expect(acceptances[0].domain).toBe("github.com");
+    expect(acceptances[0].preferredGroup).toBe("Dev");
+  });
+
+  it("returns only acceptances for identical suggestions", () => {
+    const groups: TabGroupSuggestion[] = [
+      { name: "Dev", color: "blue", tabIds: [1, 2] },
+    ];
+    const signals = extractCorrections(groups, groups, tabs);
+    expect(signals.every((c) => c.source === "acceptance")).toBe(true);
   });
 
   it("deduplicates by domain", () => {
@@ -166,6 +179,16 @@ describe("rankCorrections", () => {
     const ranked = rankCorrections(corrections, now);
     expect(ranked[0].domain).toBe("high.com");
   });
+
+  it("ranks corrections above acceptances with same count and age", () => {
+    const now = Date.now();
+    const signals: CorrectionSignal[] = [
+      { domain: "accept.com", preferredGroup: "A", count: 3, lastSeen: now, source: "acceptance" },
+      { domain: "correct.com", preferredGroup: "B", count: 3, lastSeen: now, source: "correction" },
+    ];
+    const ranked = rankCorrections(signals, now);
+    expect(ranked[0].domain).toBe("correct.com");
+  });
 });
 
 // ─── correctionsBlock ───────────────────────────────────────────────
@@ -206,11 +229,46 @@ describe("correctionsBlock", () => {
     expect(lines).toHaveLength(5);
   });
 
+  it("formats acceptance signals differently", () => {
+    const signals: CorrectionSignal[] = [
+      { domain: "github.com", preferredGroup: "Dev", count: 5, lastSeen: Date.now(), source: "acceptance" },
+    ];
+    const block = correctionsBlock(signals);
+    expect(block).toContain('"Dev" works well');
+    expect(block).toContain("confirmed 5x");
+  });
+
   it("includes instruction to respect preferences", () => {
     const corrections: CorrectionSignal[] = [
       { domain: "test.com", preferredGroup: "Test", count: 1, lastSeen: Date.now() },
     ];
     const block = correctionsBlock(corrections);
     expect(block).toContain("Respect these preferences");
+  });
+});
+
+describe("mergeCorrections — source upgrade", () => {
+  it("upgrades source to correction when merging acceptance with correction", () => {
+    const existing: CorrectionSignal[] = [
+      { domain: "github.com", preferredGroup: "Dev", count: 2, lastSeen: 1000, source: "acceptance" },
+    ];
+    const incoming: CorrectionSignal[] = [
+      { domain: "github.com", preferredGroup: "Dev", count: 1, lastSeen: 2000, source: "correction" },
+    ];
+    const result = mergeCorrections(existing, incoming);
+    expect(result).toHaveLength(1);
+    expect(result[0].source).toBe("correction");
+    expect(result[0].count).toBe(3);
+  });
+
+  it("keeps acceptance source when both are acceptances", () => {
+    const existing: CorrectionSignal[] = [
+      { domain: "github.com", preferredGroup: "Dev", count: 1, lastSeen: 1000, source: "acceptance" },
+    ];
+    const incoming: CorrectionSignal[] = [
+      { domain: "github.com", preferredGroup: "Dev", count: 1, lastSeen: 2000, source: "acceptance" },
+    ];
+    const result = mergeCorrections(existing, incoming);
+    expect(result[0].source).toBe("acceptance");
   });
 });

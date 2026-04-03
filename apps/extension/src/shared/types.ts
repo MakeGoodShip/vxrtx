@@ -138,6 +138,8 @@ export interface BookmarkDuplicateGroup {
 
 // ─── Correction Signals ─────────────────────────────────────────────
 
+export type SignalSource = "correction" | "acceptance";
+
 export interface CorrectionSignal {
   /** Domain the correction applies to (e.g., "github.com") */
   domain: string;
@@ -145,10 +147,12 @@ export interface CorrectionSignal {
   preferredGroup?: string;
   /** Group name the user rejected for this domain */
   rejectedGroup?: string;
-  /** Number of times this correction has been made */
+  /** Number of times this signal has been recorded */
   count: number;
-  /** Timestamp of the most recent correction */
+  /** Timestamp of the most recent occurrence */
   lastSeen: number;
+  /** Whether this came from an explicit edit or implicit acceptance. Defaults to "correction" for backward compat. */
+  source?: SignalSource;
 }
 
 // ─── Snapshots ──────────────────────────────────────────────────────

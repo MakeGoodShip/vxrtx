@@ -58,7 +58,7 @@ export function extractCorrections(
     if (!domain) continue;
 
     if (appliedGroup && appliedGroup !== aiGroup) {
-      // Tab moved to a different group
+      // Tab moved to a different group — explicit correction
       const key = `${domain}:prefer:${appliedGroup}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -67,6 +67,7 @@ export function extractCorrections(
           preferredGroup: appliedGroup,
           count: 1,
           lastSeen: now,
+          source: "correction",
         });
       }
     } else if (!appliedGroup) {
@@ -79,6 +80,20 @@ export function extractCorrections(
           rejectedGroup: aiGroup,
           count: 1,
           lastSeen: now,
+          source: "correction",
+        });
+      }
+    } else if (appliedGroup === aiGroup) {
+      // Tab accepted as-is — implicit affinity signal
+      const key = `${domain}:accept:${aiGroup}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        corrections.push({
+          domain,
+          preferredGroup: aiGroup,
+          count: 1,
+          lastSeen: now,
+          source: "acceptance",
         });
       }
     }
@@ -111,6 +126,10 @@ export function mergeCorrections(
         ...merged[matchIdx],
         count: merged[matchIdx].count + 1,
         lastSeen: Math.max(merged[matchIdx].lastSeen, signal.lastSeen),
+        // Upgrade to "correction" if either signal is an explicit correction
+        source: merged[matchIdx].source === "correction" || signal.source === "correction"
+          ? "correction"
+          : "acceptance",
       };
     } else {
       merged.push(signal);
@@ -126,13 +145,17 @@ export function mergeCorrections(
   return merged;
 }
 
+/** Weight multiplier: explicit corrections are 2x stronger than implicit acceptances. */
+const ACCEPTANCE_WEIGHT = 0.5;
+
 /**
  * Calculate decay weight for a correction signal.
- * weight = count * exp(-daysSinceLastSeen / halfLife)
+ * weight = count * sourceMultiplier * exp(-daysSinceLastSeen / halfLife)
  */
 function decayWeight(signal: CorrectionSignal, now = Date.now()): number {
   const daysSince = (now - signal.lastSeen) / (1000 * 60 * 60 * 24);
-  return signal.count * Math.exp(-daysSince / DECAY_HALF_LIFE_DAYS);
+  const sourceMultiplier = signal.source === "acceptance" ? ACCEPTANCE_WEIGHT : 1;
+  return signal.count * sourceMultiplier * Math.exp(-daysSince / DECAY_HALF_LIFE_DAYS);
 }
 
 /**
@@ -161,10 +184,13 @@ export function correctionsBlock(
   const top = ranked.slice(0, maxItems);
 
   const lines = top.map((c) => {
-    if (c.preferredGroup) {
-      return `- ${c.domain} tabs → prefer "${c.preferredGroup}" (corrected ${c.count}x)`;
+    if (c.rejectedGroup) {
+      return `- ${c.domain} tabs → avoid "${c.rejectedGroup}" (rejected ${c.count}x)`;
     }
-    return `- ${c.domain} tabs → avoid "${c.rejectedGroup}" (rejected ${c.count}x)`;
+    if (c.source === "acceptance") {
+      return `- ${c.domain} tabs → "${c.preferredGroup}" works well (confirmed ${c.count}x)`;
+    }
+    return `- ${c.domain} tabs → prefer "${c.preferredGroup}" (corrected ${c.count}x)`;
   });
 
   return `USER PREFERENCES (learned from your past corrections):\n${lines.join("\n")}\nRespect these preferences when grouping the tabs below.`;

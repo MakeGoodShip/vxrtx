@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -118,7 +118,9 @@ export class RelaxedProvider implements AIProvider {
       userBlocks.push({ type: "text", text: dynamicText });
     }
 
+    const model = selectClaudeModel(itemCount);
     const timeout = aiTimeoutMs(itemCount);
+    console.log(`[vxrtx] Claude request: model=${model}, items=${itemCount}, timeout=${Math.round(timeout / 1000)}s`);
     const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -128,7 +130,7 @@ export class RelaxedProvider implements AIProvider {
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model,
         max_tokens: 4096,
         temperature: 0.0,
         system: SYSTEM_MESSAGE,

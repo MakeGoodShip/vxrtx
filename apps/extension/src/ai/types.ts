@@ -41,6 +41,15 @@ export interface AIRequestOptions {
 
 export const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
 
+/** Route Claude model by item count: Haiku for small sets, Sonnet for large. */
+const CLAUDE_HAIKU = "claude-haiku-4-5-20251001";
+const CLAUDE_SONNET = "claude-sonnet-4-20250514";
+const CLAUDE_ROUTING_THRESHOLD = 30;
+
+export function selectClaudeModel(itemCount: number): string {
+  return itemCount <= CLAUDE_ROUTING_THRESHOLD ? CLAUDE_HAIKU : CLAUDE_SONNET;
+}
+
 /** Base timeout for LLM API calls. Scales with item count via aiTimeoutMs(). */
 const AI_FETCH_BASE_TIMEOUT_MS = 30_000;
 const AI_FETCH_PER_ITEM_MS = 250;

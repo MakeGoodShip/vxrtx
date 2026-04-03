@@ -434,7 +434,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
                 />
               </div>
               <p className="text-[10px] text-zinc-600">
-                Batch {progress.current} of {progress.total}
+                Step {progress.current} of {progress.total}
               </p>
             </div>
           )}

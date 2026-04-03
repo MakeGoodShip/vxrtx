@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -34,7 +34,7 @@ export class RelaxedProvider implements AIProvider {
     const input = tabsToRelaxedInput(tabs);
     const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity });
     return withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, tabs.length, errorContext),
       parseTabOrganization,
       onStatus,
     );
@@ -48,7 +48,7 @@ export class RelaxedProvider implements AIProvider {
     const input = bookmarksToRelaxedInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
     const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, bookmarks.length, errorContext),
       parseBookmarkOrganization,
       onStatus,
     );
@@ -71,24 +71,25 @@ export class RelaxedProvider implements AIProvider {
       includeUrls: false,
     });
     const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, folders.length, errorContext),
       parseBookmarkLocation,
       onStatus,
     );
     return parsed.suggestions;
   }
 
-  private async complete(prompt: string, errorContext?: string): Promise<string> {
+  private async complete(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
     if (this.modelProvider === "claude") {
-      return this.completeClaude(prompt, errorContext);
+      return this.completeClaude(prompt, itemCount, errorContext);
     }
-    return this.completeOpenAI(prompt, errorContext);
+    return this.completeOpenAI(prompt, itemCount, errorContext);
   }
 
-  private async completeClaude(prompt: string, errorContext?: string): Promise<string> {
+  private async completeClaude(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
     if (!this.claudeKey) throw new Error("Anthropic API key not configured");
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
+    const timeout = aiTimeoutMs(itemCount);
 
     const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -105,7 +106,7 @@ export class RelaxedProvider implements AIProvider {
         system: SYSTEM_MESSAGE,
         messages: [{ role: "user", content: userContent }],
       }),
-    });
+    }, timeout);
 
     if (!response.ok) {
       const err = await response.text();
@@ -120,10 +121,11 @@ export class RelaxedProvider implements AIProvider {
     return textBlock.text;
   }
 
-  private async completeOpenAI(prompt: string, errorContext?: string): Promise<string> {
+  private async completeOpenAI(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
     if (!this.openaiKey) throw new Error("OpenAI API key not configured");
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
+    const timeout = aiTimeoutMs(itemCount);
 
     const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -140,7 +142,7 @@ export class RelaxedProvider implements AIProvider {
         temperature: 0.0,
         response_format: { type: "json_object" },
       }),
-    });
+    }, timeout);
 
     if (!response.ok) {
       const err = await response.text();

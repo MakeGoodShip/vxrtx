@@ -1,4 +1,4 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
+import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, type AIProvider, type TabOrganizationAIResult, type StatusCallback } from "../types";
 import type {
   TabInfo,
   BookmarkInfo,
@@ -45,7 +45,7 @@ export class OpenRouterProvider implements AIProvider {
       granularity,
     });
     return withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, tabs.length, errorContext),
       parseTabOrganization,
       onStatus,
     );
@@ -64,7 +64,7 @@ export class OpenRouterProvider implements AIProvider {
       granularity,
     });
     const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, bookmarks.length, errorContext),
       parseBookmarkOrganization,
       onStatus,
     );
@@ -89,17 +89,18 @@ export class OpenRouterProvider implements AIProvider {
       includeUrls: this.includeUrls,
     });
     const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, errorContext),
+      (errorContext) => this.complete(prompt, folders.length, errorContext),
       parseBookmarkLocation,
       onStatus,
     );
     return parsed.suggestions;
   }
 
-  private async complete(prompt: string, errorContext?: string): Promise<string> {
+  private async complete(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
     if (!this.apiKey) throw new Error("OpenRouter API key not configured");
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
+    const timeout = aiTimeoutMs(itemCount);
 
     const response = await fetchWithTimeout(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -120,6 +121,7 @@ export class OpenRouterProvider implements AIProvider {
           temperature: 0.0,
         }),
       },
+      timeout,
     );
 
     if (!response.ok) {

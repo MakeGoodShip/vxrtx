@@ -51,8 +51,8 @@ export function sendMessage<TReq = unknown, TRes = unknown>(
   });
 }
 
-/** Timeout for silence between progress updates (45 seconds). Resets on each progress message. */
-const SILENCE_TIMEOUT_MS = 45_000;
+/** Timeout for silence between progress updates (60 seconds). Resets on each progress message. */
+const SILENCE_TIMEOUT_MS = 60_000;
 
 /**
  * Send a message over a port for long-running operations.

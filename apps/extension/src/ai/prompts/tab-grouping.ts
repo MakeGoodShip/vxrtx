@@ -141,17 +141,29 @@ function schemaBlock(): string {
 
 // ─── Builder ────────────────────────────────────────────────────────
 
+export interface PromptParts {
+  /** Static portion (rules + few-shot + schema) — identical across calls, cacheable. */
+  cached: string;
+  /** Dynamic portion (granularity + data) — changes per request. */
+  dynamic: string;
+}
+
 export function buildTabGroupingPrompt(
   tabs: TabInput[],
   options: { includeUrls: boolean; granularity?: GroupingGranularity },
 ): string {
-  return [
-    rules(),
-    granularityInstruction(options.granularity ?? 3),
-    fewShotExamples(),
-    dataBlock(tabs, options),
-    schemaBlock(),
-  ].join("\n\n");
+  const parts = buildTabGroupingPromptParts(tabs, options);
+  return `${parts.cached}\n\n${parts.dynamic}`;
+}
+
+export function buildTabGroupingPromptParts(
+  tabs: TabInput[],
+  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+): PromptParts {
+  return {
+    cached: [rules(), fewShotExamples(), schemaBlock()].join("\n\n"),
+    dynamic: [granularityInstruction(options.granularity ?? 3), dataBlock(tabs, options)].join("\n\n"),
+  };
 }
 
 // ─── Input Mappers ──────────────────────────────────────────────────

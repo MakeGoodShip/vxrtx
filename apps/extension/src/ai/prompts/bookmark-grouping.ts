@@ -122,17 +122,27 @@ function schemaBlock(): string {
 
 // ─── Builders ───────────────────────────────────────────────────────
 
+export interface PromptParts {
+  cached: string;
+  dynamic: string;
+}
+
 export function buildBookmarkOrganizePrompt(
   bookmarks: BookmarkInput[],
   options: { includeUrls: boolean; granularity?: GroupingGranularity },
 ): string {
-  return [
-    rules(),
-    granularityInstruction(options.granularity ?? 3),
-    fewShotExamples(),
-    dataBlock(bookmarks, options),
-    schemaBlock(),
-  ].join("\n\n");
+  const parts = buildBookmarkOrganizePromptParts(bookmarks, options);
+  return `${parts.cached}\n\n${parts.dynamic}`;
+}
+
+export function buildBookmarkOrganizePromptParts(
+  bookmarks: BookmarkInput[],
+  options: { includeUrls: boolean; granularity?: GroupingGranularity },
+): PromptParts {
+  return {
+    cached: [rules(), fewShotExamples(), schemaBlock()].join("\n\n"),
+    dynamic: [granularityInstruction(options.granularity ?? 3), dataBlock(bookmarks, options)].join("\n\n"),
+  };
 }
 
 export function buildBookmarkLocationPrompt(

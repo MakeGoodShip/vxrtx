@@ -9,10 +9,12 @@ import type {
 } from "@/shared/types";
 import {
   buildTabGroupingPrompt,
+  buildTabGroupingPromptParts,
   tabsToRelaxedInput,
 } from "../prompts/tab-grouping";
 import {
   buildBookmarkOrganizePrompt,
+  buildBookmarkOrganizePromptParts,
   buildBookmarkLocationPrompt,
   bookmarksToRelaxedInput,
 } from "../prompts/bookmark-grouping";
@@ -32,9 +34,17 @@ export class RelaxedProvider implements AIProvider {
 
   async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity, onStatus?: StatusCallback): Promise<TabOrganizationAIResult> {
     const input = tabsToRelaxedInput(tabs);
+    if (this.modelProvider === "claude") {
+      const parts = buildTabGroupingPromptParts(input, { includeUrls: false, granularity });
+      return withRetry(
+        (errorContext) => this.completeClaude(parts.cached, parts.dynamic, tabs.length, errorContext),
+        parseTabOrganization,
+        onStatus,
+      );
+    }
     const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity });
     return withRetry(
-      (errorContext) => this.complete(prompt, tabs.length, errorContext),
+      (errorContext) => this.completeOpenAI(prompt, tabs.length, errorContext),
       parseTabOrganization,
       onStatus,
     );
@@ -46,12 +56,22 @@ export class RelaxedProvider implements AIProvider {
     onStatus?: StatusCallback,
   ): Promise<BookmarkOrganizationResult> {
     const input = bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
-    const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, bookmarks.length, errorContext),
-      parseBookmarkOrganization,
-      onStatus,
-    );
+    let parsed;
+    if (this.modelProvider === "claude") {
+      const parts = buildBookmarkOrganizePromptParts(input, { includeUrls: false, granularity });
+      parsed = await withRetry(
+        (errorContext) => this.completeClaude(parts.cached, parts.dynamic, bookmarks.length, errorContext),
+        parseBookmarkOrganization,
+        onStatus,
+      );
+    } else {
+      const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
+      parsed = await withRetry(
+        (errorContext) => this.completeOpenAI(prompt, bookmarks.length, errorContext),
+        parseBookmarkOrganization,
+        onStatus,
+      );
+    }
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
       moves: [],
@@ -71,26 +91,34 @@ export class RelaxedProvider implements AIProvider {
       includeUrls: false,
     });
     const parsed = await withRetry(
-      (errorContext) => this.complete(prompt, folders.length, errorContext),
+      (errorContext) => this.modelProvider === "claude"
+        ? this.completeClaude(prompt, "", folders.length, errorContext)
+        : this.completeOpenAI(prompt, folders.length, errorContext),
       parseBookmarkLocation,
       onStatus,
     );
     return parsed.suggestions;
   }
 
-  private async complete(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
-    if (this.modelProvider === "claude") {
-      return this.completeClaude(prompt, itemCount, errorContext);
-    }
-    return this.completeOpenAI(prompt, itemCount, errorContext);
-  }
-
-  private async completeClaude(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
+  private async completeClaude(
+    cachedContent: string,
+    dynamicContent: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     if (!this.claudeKey) throw new Error("Anthropic API key not configured");
 
-    const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
-    const timeout = aiTimeoutMs(itemCount);
+    const userBlocks: { type: string; text: string; cache_control?: { type: string } }[] = [
+      { type: "text", text: cachedContent, cache_control: { type: "ephemeral" } },
+    ];
+    const dynamicText = errorContext
+      ? `${dynamicContent}\n\n${errorContext}`
+      : dynamicContent;
+    if (dynamicText) {
+      userBlocks.push({ type: "text", text: dynamicText });
+    }
 
+    const timeout = aiTimeoutMs(itemCount);
     const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -104,7 +132,7 @@ export class RelaxedProvider implements AIProvider {
         max_tokens: 4096,
         temperature: 0.0,
         system: SYSTEM_MESSAGE,
-        messages: [{ role: "user", content: userContent }],
+        messages: [{ role: "user", content: userBlocks }],
       }),
     }, timeout);
 

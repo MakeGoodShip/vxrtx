@@ -195,6 +195,7 @@ Return up to 3 suggestions, ranked by confidence (0-1).`;
 
 // ─── Input Mappers ──────────────────────────────────────────────────
 
+
 export function bookmarksToYoloInput(
   bookmarks: BookmarkInfo[],
 ): BookmarkInput[] {

@@ -3,6 +3,7 @@ import type { Settings } from "@/shared/types";
 import { getSettings } from "@/core/storage";
 import { OllamaProvider } from "./providers/ollama";
 import { ChromeAIProvider } from "./providers/chrome-ai";
+import { LocalProvider } from "./providers/local";
 import { RelaxedProvider } from "./providers/relaxed";
 import { YoloProvider } from "./providers/yolo";
 import { OpenRouterProvider } from "./providers/openrouter";

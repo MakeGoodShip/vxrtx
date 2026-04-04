@@ -884,6 +884,7 @@ async function handleApplyBookmarkSuggestions(
     tabs: [],
     bookmarks: bmSnapshot,
   });
+  console.log(`[vxrtx] Auto-snapshot created: ${bmSnapshot.length} bookmarks`);
 
   // Build locked set so we never move/remove locked bookmarks
   const lockedFolders = await getLockedBookmarkFolders();

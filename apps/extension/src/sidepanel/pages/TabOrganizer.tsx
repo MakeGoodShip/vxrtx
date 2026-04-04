@@ -76,18 +76,22 @@ export function TabOrganizer() {
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const elapsed = useElapsedTimer(status === "loading" || status === "applying");
 
-  // Guidance
+  // Guidance + pinned toggle
   const [guidance, setGuidance] = useState("");
+  const [includePinned, setIncludePinned] = useState(false);
 
   // Lock state
   const [chromeGroups, setChromeGroups] = useState<ChromeGroup[]>([]);
   const [lockedIds, setLockedIds] = useState<Set<number>>(new Set());
   const [dormantLocks, setDormantLocks] = useState<LockedTabGroup[]>([]);
 
-  // Load guidance from settings on mount
+  // Load guidance + pinned preference from settings on mount
   useEffect(() => {
     sendMessage<void, import("@/shared/types").Settings>("get-settings").then((res) => {
-      if (res.success && res.data?.tabGuidance) setGuidance(res.data.tabGuidance);
+      if (res.success && res.data) {
+        if (res.data.tabGuidance) setGuidance(res.data.tabGuidance);
+        if (res.data.includePinnedTabs) setIncludePinned(res.data.includePinnedTabs);
+      }
     });
   }, []);
 
@@ -211,9 +215,9 @@ export function TabOrganizer() {
     setProgress(null);
     try {
       const response = await sendLongRunningMessage<
-        { granularity: GroupingGranularity },
+        { granularity: GroupingGranularity; includePinned: boolean },
         TabOrganizationResult
-      >("organize-tabs", { granularity }, setProgress);
+      >("organize-tabs", { granularity, includePinned }, setProgress);
       if (response.success && response.data) {
         const data = response.data;
         const tabMap = new Map(data.tabs.map((t) => [t.id, t]));
@@ -417,6 +421,37 @@ export function TabOrganizer() {
         <div className="space-y-3">
           <GranularitySlider value={granularity} onChange={setGranularity} />
           <GuidanceInput type="tabs" value={guidance} onChange={setGuidance} />
+
+          {/* Pinned tabs toggle */}
+          <button
+            onClick={() => {
+              const next = !includePinned;
+              setIncludePinned(next);
+              sendMessage("save-settings", { includePinnedTabs: next });
+            }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+              includePinned
+                ? "border-brand-400/30 bg-brand-950/20"
+                : "border-zinc-800 bg-zinc-900"
+            }`}
+          >
+            <div className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
+              includePinned ? "bg-brand-500" : "bg-zinc-700"
+            }`}>
+              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                includePinned ? "translate-x-3.5" : "translate-x-0.5"
+              }`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-medium ${includePinned ? "text-brand-400" : "text-zinc-400"}`}>
+                Include pinned tabs
+              </span>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${includePinned ? "text-brand-400" : "text-zinc-600"}`}>
+              <path d="M7 1L9 3L6.5 5.5L7.5 8L6 9.5L4.5 6.5L2 7L1 6L3.5 3.5L3 2.5L4.5 1L5.5 3L7 1Z" />
+            </svg>
+          </button>
+
           {chromeGroups.length > 0 ? (
             <p className="text-xs text-zinc-600">
               Locked groups are excluded from all organization.

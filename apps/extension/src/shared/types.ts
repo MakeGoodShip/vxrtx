@@ -10,6 +10,8 @@ export interface Settings {
   openrouterApiKey: string;
   openrouterModel: string;
   staleDaysThreshold: number;
+  /** Whether to include pinned tabs in AI organization */
+  includePinnedTabs: boolean;
   /** Custom guidance for tab organization (injected into prompt) */
   tabGuidance: string;
   /** Custom guidance for bookmark organization (injected into prompt) */
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openrouterApiKey: "",
   openrouterModel: "anthropic/claude-sonnet-4",
   staleDaysThreshold: 7,
+  includePinnedTabs: false,
   tabGuidance: "",
   bookmarkGuidance: "",
 };

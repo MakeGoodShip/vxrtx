@@ -110,10 +110,11 @@ chrome.runtime.onConnect.addListener((port) => {
       let result: MessageResponse;
       const payload = message.payload as Record<string, unknown> | undefined;
       const granularity = payload?.granularity as number | undefined;
+      const includePinned = payload?.includePinned as boolean | undefined;
 
       switch (message.action) {
         case "organize-tabs":
-          result = await handleOrganizeTabs(granularity, sendProgress);
+          result = await handleOrganizeTabs(granularity, includePinned, sendProgress);
           break;
         case "organize-bookmarks":
           result = await handleOrganizeBookmarks(granularity, sendProgress);
@@ -137,10 +138,10 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       await saveSettings(message.payload as Partial<Settings>);
       return { success: true };
 
-    case "organize-tabs":
-      return await handleOrganizeTabs(
-        (message.payload as { granularity?: number })?.granularity,
-      );
+    case "organize-tabs": {
+      const p = message.payload as { granularity?: number; includePinned?: boolean } | undefined;
+      return await handleOrganizeTabs(p?.granularity, p?.includePinned);
+    }
 
     case "apply-tab-suggestions":
       return await handleApplyTabSuggestions(
@@ -241,6 +242,7 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
 async function handleOrganizeTabs(
   granularity?: number,
+  includePinned?: boolean,
   sendProgress?: ProgressSender,
 ): Promise<MessageResponse<TabOrganizationResult>> {
   const settings = await getSettings();
@@ -256,15 +258,16 @@ async function handleOrganizeTabs(
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Filter out pinned tabs and tabs in locked groups
-  const pinnedTabs = allTabs.filter((t) => t.pinned);
-  const unpinnedTabs = allTabs.filter((t) => !t.pinned);
+  // Filter out pinned tabs (unless included) and tabs in locked groups
+  const shouldExcludePinned = !includePinned;
+  const pinnedTabs = shouldExcludePinned ? allTabs.filter((t) => t.pinned) : [];
+  const candidateTabs = shouldExcludePinned ? allTabs.filter((t) => !t.pinned) : allTabs;
 
   const windowId = allTabs[0]?.windowId;
   const lockedGroups =
     windowId !== undefined ? await resolveLockedGroups(windowId) : [];
-  const lockedTabIds = getLockedTabIds(lockedGroups, unpinnedTabs);
-  const tabs = unpinnedTabs.filter((t) => !lockedTabIds.has(t.id));
+  const lockedTabIds = getLockedTabIds(lockedGroups, candidateTabs);
+  const tabs = candidateTabs.filter((t) => !lockedTabIds.has(t.id));
 
   let result: TabOrganizationResult;
 

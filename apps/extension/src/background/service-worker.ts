@@ -58,6 +58,7 @@ import {
   removeBookmark,
   removeEmptyFolders,
   getDeepLockedBookmarkIds,
+  ruleBasedBookmarkOrganize,
 } from "@/core/bookmarks";
 import { STORAGE_KEYS } from "@/shared/constants";
 import { getAIProvider } from "@/ai/provider";
@@ -707,21 +708,10 @@ async function handleOrganizeBookmarks(
   sendProgress?.(1, 4, `Preparing ${bookmarks.length} bookmarks...`);
 
   if (settings.aiTier === "secure") {
-    // Rule-based: no restructuring, just return current state
+    const ruleResult = ruleBasedBookmarkOrganize(bookmarks, g);
     return {
       success: true,
-      data: {
-        bookmarks,
-        folders,
-        result: {
-          folders: [],
-          moves: [],
-          duplicates: [],
-          newFolders: [],
-          reasoning:
-            "Local AI not yet available. Showing current bookmarks. Switch to Relaxed/YOLO tier for AI-powered organization.",
-        },
-      },
+      data: { bookmarks, folders, result: ruleResult },
     };
   }
 
@@ -868,16 +858,14 @@ async function handleSuggestBookmarkLocation(
 ): Promise<MessageResponse<BookmarkLocationResponse>> {
   const settings = await getSettings();
 
-  if (settings.aiTier === "secure") {
-    return {
-      success: false,
-      error:
-        "Local AI not yet available for bookmark suggestions. Switch to Relaxed/YOLO tier.",
-    };
-  }
-
   const tree = await getBookmarkTree();
   const folders = extractFolders(tree);
+
+  if (settings.aiTier === "secure") {
+    // Rule-based: suggest folders whose name matches the bookmark's domain
+    const suggestions = suggestFolderByDomain(payload.bookmark, folders);
+    return { success: true, data: { suggestions } };
+  }
   const folderInput = folders.map((f) => ({ id: f.id, path: f.path }));
 
   try {
@@ -893,6 +881,54 @@ async function handleSuggestBookmarkLocation(
       error: `AI suggestion failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
+
+/**
+ * Rule-based folder suggestion: match bookmark's domain against existing folder names/paths.
+ */
+function suggestFolderByDomain(
+  bookmark: BookmarkInfo,
+  folders: FolderInfo[],
+): LocationSuggestion[] {
+  if (!bookmark.url) return [];
+
+  let domain: string;
+  try {
+    domain = new URL(bookmark.url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return [];
+  }
+
+  const domainWord = domain.split(".")[0]; // "github" from "github.com"
+  const suggestions: LocationSuggestion[] = [];
+
+  for (const folder of folders) {
+    const folderLower = folder.title.toLowerCase();
+    const pathLower = folder.path.toLowerCase();
+
+    // Exact domain word match in folder name
+    if (folderLower.includes(domainWord)) {
+      suggestions.push({
+        folderId: folder.id,
+        folderPath: folder.path,
+        confidence: 0.8,
+        reason: `Folder name matches domain "${domain}"`,
+      });
+    }
+    // Partial match in folder path
+    else if (pathLower.includes(domainWord)) {
+      suggestions.push({
+        folderId: folder.id,
+        folderPath: folder.path,
+        confidence: 0.5,
+        reason: `Folder path contains "${domainWord}"`,
+      });
+    }
+  }
+
+  // Sort by confidence, take top 3
+  suggestions.sort((a, b) => b.confidence - a.confidence);
+  return suggestions.slice(0, 3);
 }
 
 /**

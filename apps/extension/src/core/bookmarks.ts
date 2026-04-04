@@ -1,9 +1,12 @@
 import type {
   BookmarkInfo,
   BookmarkSnapshot,
+  BookmarkFolderSuggestion,
+  BookmarkOrganizationResult,
   FolderInfo,
   BookmarkDuplicateGroup,
   LockedBookmarkFolder,
+  GroupingGranularity,
 } from "@/shared/types";
 
 export async function getBookmarkTree(): Promise<
@@ -194,6 +197,83 @@ export async function removeEmptyFolders(): Promise<number> {
     }
   }
   return totalRemoved;
+}
+
+// ─── Rule-Based Bookmark Organization ───────────────────────────────
+
+/**
+ * Group bookmarks by domain, similar to tab's groupByDomain.
+ */
+export function groupBookmarksByDomain(
+  bookmarks: BookmarkInfo[],
+): Map<string, BookmarkInfo[]> {
+  const domainMap = new Map<string, BookmarkInfo[]>();
+  for (const bm of bookmarks) {
+    if (!bm.url) continue;
+    try {
+      const hostname = new URL(bm.url).hostname.replace(/^www\./, "");
+      // Use the main domain (e.g., "github" from "github.com")
+      const existing = domainMap.get(hostname);
+      if (existing) {
+        existing.push(bm);
+      } else {
+        domainMap.set(hostname, [bm]);
+      }
+    } catch {
+      // Skip bookmarks with invalid URLs
+    }
+  }
+  return domainMap;
+}
+
+/**
+ * Rule-based bookmark organization. Groups by domain with granularity-aware
+ * minimum group size. No AI needed.
+ */
+export function ruleBasedBookmarkOrganize(
+  bookmarks: BookmarkInfo[],
+  granularity: GroupingGranularity = 3,
+): BookmarkOrganizationResult {
+  const domainMap = groupBookmarksByDomain(bookmarks);
+
+  // Granularity affects minimum group size: 1→6, 2→4, 3→3, 4→2, 5→1
+  const minGroupSize = granularity <= 1 ? 6 : granularity <= 2 ? 4 : granularity <= 3 ? 3 : granularity <= 4 ? 2 : 1;
+
+  const folders: BookmarkFolderSuggestion[] = [];
+  const ungrouped: BookmarkInfo[] = [];
+
+  for (const [hostname, bms] of domainMap) {
+    if (bms.length >= minGroupSize) {
+      const name = hostname.split(".")[0];
+      folders.push({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        bookmarkIds: bms.map((b) => b.id),
+      });
+    } else {
+      ungrouped.push(...bms);
+    }
+  }
+
+  // Group remaining ungrouped bookmarks into a "Misc" folder if there are enough
+  if (ungrouped.length > 0) {
+    folders.push({
+      name: "Misc",
+      bookmarkIds: ungrouped.map((b) => b.id),
+    });
+  }
+
+  // Sort folders by bookmark count (largest first)
+  folders.sort((a, b) => b.bookmarkIds.length - a.bookmarkIds.length);
+
+  const duplicates = findDuplicateBookmarks(bookmarks);
+
+  return {
+    folders,
+    moves: [],
+    duplicates,
+    newFolders: [],
+    reasoning: `Grouped by domain (rule-based). ${folders.length} folders, ${duplicates.length} duplicate set(s) found.`,
+  };
 }
 
 export function snapshotBookmarks(

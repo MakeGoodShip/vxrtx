@@ -866,25 +866,37 @@ async function handleSuggestBookmarkLocation(
 async function handleApplyBookmarkSuggestions(
   payload: BookmarkApplyPayload,
 ): Promise<MessageResponse> {
+  console.log(`[vxrtx] Applying bookmark suggestions: ${payload.moves.length} moves, ${payload.newFolders.length} new folders, ${payload.removals.length} removals`);
+
   // Re-snapshot before applying
   const tree = await getBookmarkTree();
   const bookmarks = flattenBookmarks(tree);
   const bmSnapshot = snapshotBookmarks(bookmarks);
-  await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, bmSnapshot);
+  console.log(`[vxrtx] Bookmark snapshot: ${bmSnapshot.length} entries`);
+
+  try {
+    await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, bmSnapshot);
+  } catch (err) {
+    console.error("[vxrtx] Failed to save session snapshot:", err);
+  }
 
   // Persistent auto-snapshot for history
-  await addSnapshot({
-    id: crypto.randomUUID(),
-    timestamp: Date.now(),
-    type: "bookmarks",
-    label: "Before bookmark organization",
-    source: "auto",
-    tabCount: 0,
-    bookmarkCount: bmSnapshot.length,
-    tabs: [],
-    bookmarks: bmSnapshot,
-  });
-  console.log(`[vxrtx] Auto-snapshot created: ${bmSnapshot.length} bookmarks`);
+  try {
+    await addSnapshot({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: "bookmarks",
+      label: "Before bookmark organization",
+      source: "auto",
+      tabCount: 0,
+      bookmarkCount: bmSnapshot.length,
+      tabs: [],
+      bookmarks: bmSnapshot,
+    });
+    console.log(`[vxrtx] Auto-snapshot saved to history`);
+  } catch (err) {
+    console.error("[vxrtx] Failed to save auto-snapshot:", err);
+  }
 
   // Build locked set so we never move/remove locked bookmarks
   const lockedFolders = await getLockedBookmarkFolders();

@@ -28,6 +28,7 @@ jobs:
           target-branch: main
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       # Enable auto-merge so the release PR merges automatically once CI passes.
       # GR-5: no error suppression — if auto-merge can't be enabled, this step fails the workflow.
@@ -36,5 +37,5 @@ jobs:
         if: ${{ steps.release-please.outputs.pr }}
         run: gh pr merge --auto --squash "$PR_NUMBER"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           PR_NUMBER: ${{ fromJSON(steps.release-please.outputs.pr).number }}

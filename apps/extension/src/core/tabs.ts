@@ -177,3 +177,107 @@ export function domainToTabGroups(
 
   return groups;
 }
+
+// ─── Keyword-Enhanced Rule-Based Grouping ───────────────────────────
+
+/** Common stop words to filter out of title keywords. */
+const STOP_WORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+  "has", "have", "had", "do", "does", "did", "will", "would", "could",
+  "should", "may", "might", "can", "this", "that", "these", "those",
+  "it", "its", "my", "your", "our", "their", "his", "her", "not", "no",
+  "how", "what", "when", "where", "who", "which", "why", "all", "each",
+  "new", "old", "get", "set", "use", "using", "home", "page", "about",
+  "http", "https", "www", "com", "org", "net", "io",
+]);
+
+/** Extract meaningful keywords from a tab title. */
+function extractKeywords(title: string): string[] {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+}
+
+/**
+ * Theme-based grouping: find keyword clusters across tabs that share
+ * common title keywords, regardless of domain. Runs AFTER domain grouping
+ * to merge ungrouped/small-domain tabs into keyword-based themes.
+ */
+export function groupByKeywordThemes(
+  tabs: TabInfo[],
+  minGroupSize: number = 2,
+): TabGroupSuggestion[] {
+  // Build keyword → tab mapping
+  const keywordTabs = new Map<string, Set<number>>();
+  for (const tab of tabs) {
+    const keywords = extractKeywords(tab.title);
+    for (const kw of keywords) {
+      const existing = keywordTabs.get(kw);
+      if (existing) {
+        existing.add(tab.id);
+      } else {
+        keywordTabs.set(kw, new Set([tab.id]));
+      }
+    }
+  }
+
+  // Find keywords that appear in enough tabs to form a group
+  const candidates: { keyword: string; tabIds: number[] }[] = [];
+  for (const [keyword, tabIdSet] of keywordTabs) {
+    if (tabIdSet.size >= minGroupSize) {
+      candidates.push({ keyword, tabIds: Array.from(tabIdSet) });
+    }
+  }
+
+  // Sort by group size (largest first) and greedily assign tabs
+  candidates.sort((a, b) => b.tabIds.length - a.tabIds.length);
+  const assigned = new Set<number>();
+  const groups: TabGroupSuggestion[] = [];
+  let colorIndex = 0;
+
+  for (const { keyword, tabIds } of candidates) {
+    const unassigned = tabIds.filter((id) => !assigned.has(id));
+    if (unassigned.length < minGroupSize) continue;
+
+    for (const id of unassigned) assigned.add(id);
+
+    groups.push({
+      name: keyword.charAt(0).toUpperCase() + keyword.slice(1),
+      color: COLOR_CYCLE[colorIndex % COLOR_CYCLE.length],
+      tabIds: unassigned,
+    });
+    colorIndex++;
+  }
+
+  return groups;
+}
+
+/**
+ * Enhanced rule-based organization: domain grouping first, then keyword
+ * themes for ungrouped tabs. Combines both strategies for better results.
+ */
+export function enhancedRuleBasedGroups(
+  tabs: TabInfo[],
+  minGroupSize: number = 2,
+): TabGroupSuggestion[] {
+  // Step 1: Domain-based groups
+  const domainMap = groupByDomain(tabs);
+  const domainGroups = domainToTabGroups(domainMap, minGroupSize);
+
+  // Collect tab IDs already assigned to domain groups
+  const assignedIds = new Set<number>();
+  for (const g of domainGroups) {
+    for (const id of g.tabIds) assignedIds.add(id);
+  }
+
+  // Step 2: Keyword-based groups for unassigned tabs
+  const unassignedTabs = tabs.filter((t) => !assignedIds.has(t.id));
+  if (unassignedTabs.length < minGroupSize) return domainGroups;
+
+  const keywordGroups = groupByKeywordThemes(unassignedTabs, minGroupSize);
+
+  return [...domainGroups, ...keywordGroups];
+}

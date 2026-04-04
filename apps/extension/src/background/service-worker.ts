@@ -43,6 +43,7 @@ import {
   findStaleTabs,
   groupByDomain,
   domainToTabGroups,
+  enhancedRuleBasedGroups,
   getLockedTabIds,
   resolveStaleLockedGroups,
 } from "@/core/tabs";
@@ -537,11 +538,10 @@ function ruleBasedOrganize(
   staleDays: number,
   granularity: import("@/shared/types").GroupingGranularity = 3,
 ): TabOrganizationResult {
-  const domainMap = groupByDomain(tabs);
   // Lower granularity = larger minGroupSize (fewer groups)
   // 1=Broad → min 4, 2→min 3, 3=Balanced → min 2, 4→min 2, 5=Fine → min 1
   const minGroupSize = granularity <= 1 ? 4 : granularity <= 2 ? 3 : granularity <= 3 ? 2 : 1;
-  const groups = domainToTabGroups(domainMap, minGroupSize);
+  const groups = enhancedRuleBasedGroups(tabs, minGroupSize);
   const duplicates = findDuplicatesByUrl(tabs);
   const stale = findStaleTabs(tabs, staleDays);
 
@@ -550,7 +550,7 @@ function ruleBasedOrganize(
     groups,
     stale,
     duplicates,
-    reasoning: "Grouped by domain (rule-based)",
+    reasoning: "Grouped by domain + title keywords (rule-based)",
   };
 }
 

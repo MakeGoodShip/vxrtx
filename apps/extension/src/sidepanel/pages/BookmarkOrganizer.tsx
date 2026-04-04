@@ -490,7 +490,10 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
               <h3 className="text-sm font-medium text-zinc-300">
                 Suggested Folders
               </h3>
-              {data.result.folders.map((folder, i) => (
+              {data.result.folders
+                .map((folder, i) => ({ folder, i }))
+                .sort((a, b) => a.folder.name.localeCompare(b.folder.name))
+                .map(({ folder, i }) => (
                 <BookmarkFolderCard
                   key={i}
                   folder={folder}
@@ -1165,7 +1168,14 @@ function BookmarkFolderCard({
             className="group/name flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
             title="Click to rename"
           >
-            <span className="truncate">{folder.name}</span>
+            <span className="truncate">
+              {folder.name.includes("/") ? (
+                <>
+                  <span className="text-zinc-500">{folder.name.split("/").slice(0, -1).join(" / ")}{" / "}</span>
+                  {folder.name.split("/").pop()}
+                </>
+              ) : folder.name}
+            </span>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 text-zinc-500"><path d="M5.5 1.5l3 3M1.5 8.5l.5-2L7 1.5l3 3-5 5-2 .5-.5-.5z" /></svg>
           </button>
         )}

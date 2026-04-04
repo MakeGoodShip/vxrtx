@@ -22,7 +22,8 @@ const TabOrganizationSchema = z.object({
 });
 
 const BookmarkFolderSchema = z.object({
-  name: z.string().trim().min(1, "Folder name must not be empty"),
+  name: z.string().trim().min(1, "Folder name must not be empty")
+    .refine((n) => !n.startsWith("/") && !n.endsWith("/") && !n.includes("//"), "Folder name must not have leading/trailing or double slashes"),
   bookmarkIds: z.array(z.string()).min(1, "Folder must contain at least one bookmark"),
 });
 

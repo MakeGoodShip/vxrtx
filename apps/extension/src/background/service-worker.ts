@@ -749,7 +749,8 @@ async function handleOrganizeBookmarks(
     }
     console.log(`[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks in ${batches.length} batches, model=${modelLabel}, granularity=${g}`);
 
-    const allFolders: Map<string, string[]> = new Map(); // folderName → bookmarkIds
+    const allFolders: Map<string, string[]> = new Map(); // lowercased path → bookmarkIds
+    const nameMap = new Map<string, string>(); // lowercased path → first-seen original casing
     const allDuplicates: string[][] = [];
     const reasonings: string[] = [];
 
@@ -762,9 +763,12 @@ async function handleOrganizeBookmarks(
         const onStatus = (msg: string) => sendProgress?.(bi + 1, batches.length + 1, msg);
         const batchResult = await provider.organizeBookmarks(batch, { granularity: g, guidance: settings.bookmarkGuidance, onStatus });
 
-        // Merge folders: consolidate by name (case-insensitive)
+        // Merge folders: consolidate by path (case-insensitive)
         for (const folder of batchResult.folders) {
           const key = folder.name.toLowerCase().trim();
+          if (!nameMap.has(key)) {
+            nameMap.set(key, folder.name); // preserve first-seen casing
+          }
           const existing = allFolders.get(key);
           if (existing) {
             existing.push(...folder.bookmarkIds);
@@ -784,13 +788,9 @@ async function handleOrganizeBookmarks(
       }
     }
 
-    // Build merged result — use the first occurrence's casing for folder names
-    const nameMap = new Map<string, string>(); // lowercase → original casing
-    for (const batch of batches) {
-      // We need to re-derive folder names from allFolders keys
-    }
+    // Build merged result using first-seen casing for folder names
     const mergedFolders = Array.from(allFolders.entries()).map(([key, bookmarkIds]) => ({
-      name: key.charAt(0).toUpperCase() + key.slice(1), // Title case the key
+      name: nameMap.get(key) ?? key,
       bookmarkIds,
       parentId: undefined as string | undefined,
     }));
@@ -892,6 +892,40 @@ async function handleSuggestBookmarkLocation(
   }
 }
 
+/**
+ * Create a nested folder path like "Dev/Frontend". Splits on "/", creates
+ * intermediate folders, and returns the leaf folder's ID. Uses a cache to
+ * avoid creating duplicate parents within the same apply operation.
+ */
+async function createFolderPath(
+  path: string,
+  rootParentId: string,
+  cache: Map<string, string>,
+): Promise<string> {
+  const segments = path.split("/").map((s) => s.trim()).filter(Boolean);
+  if (segments.length === 0) return rootParentId;
+
+  let currentParentId = rootParentId;
+  let currentPath = "";
+
+  for (const segment of segments) {
+    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+    const cacheKey = `${currentPath.toLowerCase()}:${rootParentId}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      currentParentId = cached;
+      continue;
+    }
+
+    const created = await createFolder(segment, currentParentId);
+    cache.set(cacheKey, created.id);
+    currentParentId = created.id;
+  }
+
+  return currentParentId;
+}
+
 async function handleApplyBookmarkSuggestions(
   payload: BookmarkApplyPayload,
 ): Promise<MessageResponse> {
@@ -931,11 +965,12 @@ async function handleApplyBookmarkSuggestions(
   const lockedFolders = await getLockedBookmarkFolders();
   const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
 
-  // Create new folders first and build a map of placeholder → real ID
+  // Create new folders (with hierarchical path support) and build a map of placeholder → real ID
   const folderIdMap = new Map<string, string>();
+  const folderPathCache = new Map<string, string>(); // cache to avoid duplicate intermediate folders
   for (const folder of payload.newFolders) {
-    const created = await createFolder(folder.name, folder.parentId);
-    folderIdMap.set(`${folder.name}:${folder.parentId}`, created.id);
+    const leafId = await createFolderPath(folder.name, folder.parentId, folderPathCache);
+    folderIdMap.set(`${folder.name}:${folder.parentId}`, leafId);
   }
 
   // Apply moves (skip locked bookmarks)

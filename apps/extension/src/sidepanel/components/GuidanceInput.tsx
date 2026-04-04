@@ -12,8 +12,8 @@ const TAB_PRESETS = [
 const BOOKMARK_PRESETS = [
   { label: "By topic", value: "Organize bookmarks by topic and subject matter" },
   { label: "By purpose", value: "Organize bookmarks by purpose: tools, reference, reading, entertainment" },
-  { label: "Flat", value: "Create a flat folder structure with no nesting, broad categories only" },
-  { label: "Fewer folders", value: "Create as few folders as possible, merge aggressively" },
+  { label: "Nested", value: "Organize into a hierarchical folder tree using '/' paths like 'Dev/Frontend'. Group related categories under shared parents." },
+  { label: "Flat", value: "Create a completely flat folder structure. Do NOT use '/' nesting. Use only simple top-level folder names." },
 ];
 
 export function GuidanceInput({

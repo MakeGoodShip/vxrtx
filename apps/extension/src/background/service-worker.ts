@@ -1,69 +1,75 @@
+import { getAIProvider } from "@/ai/provider";
+import {
+  buildFolderPathMap,
+  createFolder,
+  extractFolders,
+  findDuplicateBookmarksDetailed,
+  flattenBookmarks,
+  getBookmarkTree,
+  getDeepLockedBookmarkIds,
+  moveBookmark,
+  removeBookmark,
+  removeEmptyFolders,
+  ruleBasedBookmarkOrganize,
+  snapshotBookmarks,
+} from "@/core/bookmarks";
+import { extractCorrections, mergeCorrections } from "@/core/corrections";
+import {
+  addSnapshot,
+  appendExperimentLog,
+  clearSessionData,
+  deleteSnapshot,
+  getCorrections,
+  getExperimentLogs,
+  getLockedBookmarkFolders,
+  getLockedTabGroups,
+  getSessionData,
+  getSettings,
+  getSnapshotHistory,
+  importSnapshots,
+  renameSnapshot,
+  saveCorrections,
+  saveLockedBookmarkFolders,
+  saveLockedTabGroups,
+  saveSettings,
+  setSessionData,
+  updateExperimentLog,
+} from "@/core/storage";
+import {
+  closeTabs,
+  createTabGroup,
+  enhancedRuleBasedGroups,
+  findDuplicatesByUrl,
+  findStaleTabs,
+  getLockedTabIds,
+  queryAllTabs,
+  queryTabGroups,
+  resolveStaleLockedGroups,
+  ungroupTabs,
+} from "@/core/tabs";
+import { STORAGE_KEYS } from "@/shared/constants";
 import type { Message, MessageResponse, ProgressUpdate } from "@/shared/messaging";
 import type {
+  BookmarkDuplicateGroup,
+  BookmarkInfo,
+  BookmarkOrganizationResult,
+  BookmarkSnapshot,
+  FolderInfo,
+  LocationSuggestion,
+  LockedBookmarkFolder,
+  LockedTabGroup,
   Settings,
+  Snapshot,
+  SnapshotType,
+  TabGroupSnapshot,
+  TabGroupSuggestion,
   TabInfo,
   TabOrganizationResult,
   TabSnapshot,
-  LockedTabGroup,
-  LockedBookmarkFolder,
-  BookmarkInfo,
-  BookmarkSnapshot,
-  BookmarkOrganizationResult,
-  BookmarkDuplicateGroup,
-  LocationSuggestion,
-  FolderInfo,
-  Snapshot,
-  SnapshotType,
 } from "@/shared/types";
-import {
-  getSettings,
-  saveSettings,
-  setSessionData,
-  getSessionData,
-  clearSessionData,
-  getLockedTabGroups,
-  saveLockedTabGroups,
-  getLockedBookmarkFolders,
-  saveLockedBookmarkFolders,
-  addSnapshot,
-  getSnapshotHistory,
-  deleteSnapshot,
-  renameSnapshot,
-  importSnapshots,
-} from "@/core/storage";
-import {
-  queryAllTabs,
-  queryTabGroups,
-  createTabGroup,
-  ungroupTabs,
-  closeTabs,
-  findDuplicatesByUrl,
-  findStaleTabs,
-  groupByDomain,
-  domainToTabGroups,
-  getLockedTabIds,
-  resolveStaleLockedGroups,
-} from "@/core/tabs";
-import {
-  getBookmarkTree,
-  flattenBookmarks,
-  extractFolders,
-  buildFolderPathMap,
-  findDuplicateBookmarksDetailed,
-  snapshotBookmarks,
-  moveBookmark,
-  createFolder,
-  removeBookmark,
-  removeEmptyFolders,
-  getDeepLockedBookmarkIds,
-} from "@/core/bookmarks";
-import { STORAGE_KEYS } from "@/shared/constants";
-import { getAIProvider } from "@/ai/provider";
 
 // Open side panel when extension icon is clicked
-chrome.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch(console.error);
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
 // Message handler for quick operations
 chrome.runtime.onMessage.addListener(
@@ -72,9 +78,12 @@ chrome.runtime.onMessage.addListener(
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: MessageResponse) => void,
   ) => {
-    handleMessage(message).then(sendResponse).catch((err) => {
-      sendResponse({ success: false, error: String(err) });
-    });
+    console.log(`[vxrtx] Message received: action="${message.action}"`);
+    handleMessage(message)
+      .then(sendResponse)
+      .catch((err) => {
+        sendResponse({ success: false, error: String(err) });
+      });
     return true;
   },
 );
@@ -83,9 +92,11 @@ chrome.runtime.onMessage.addListener(
 type ProgressSender = (current: number, total: number, msg: string) => void;
 
 chrome.runtime.onConnect.addListener((port) => {
+  console.log(`[vxrtx] Port connected: "${port.name}"`);
   if (port.name !== "long-running") return;
 
   port.onMessage.addListener(async (message: Message) => {
+    console.log(`[vxrtx] Port message received: action="${message.action}"`);
     const sendProgress: ProgressSender = (current, total, msg) => {
       try {
         port.postMessage({
@@ -103,10 +114,11 @@ chrome.runtime.onConnect.addListener((port) => {
       let result: MessageResponse;
       const payload = message.payload as Record<string, unknown> | undefined;
       const granularity = payload?.granularity as number | undefined;
+      const includePinned = payload?.includePinned as boolean | undefined;
 
       switch (message.action) {
         case "organize-tabs":
-          result = await handleOrganizeTabs(granularity, sendProgress);
+          result = await handleOrganizeTabs(granularity, includePinned, sendProgress);
           break;
         case "organize-bookmarks":
           result = await handleOrganizeBookmarks(granularity, sendProgress);
@@ -114,9 +126,17 @@ chrome.runtime.onConnect.addListener((port) => {
         default:
           result = await handleMessage(message);
       }
-      try { port.postMessage(result); } catch { /* disconnected */ }
+      try {
+        port.postMessage(result);
+      } catch {
+        /* disconnected */
+      }
     } catch (err) {
-      try { port.postMessage({ success: false, error: String(err) }); } catch { /* disconnected */ }
+      try {
+        port.postMessage({ success: false, error: String(err) });
+      } catch {
+        /* disconnected */
+      }
     }
   });
 });
@@ -130,15 +150,13 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       await saveSettings(message.payload as Partial<Settings>);
       return { success: true };
 
-    case "organize-tabs":
-      return await handleOrganizeTabs(
-        (message.payload as { granularity?: number })?.granularity,
-      );
+    case "organize-tabs": {
+      const p = message.payload as { granularity?: number; includePinned?: boolean } | undefined;
+      return await handleOrganizeTabs(p?.granularity, p?.includePinned);
+    }
 
     case "apply-tab-suggestions":
-      return await handleApplyTabSuggestions(
-        message.payload as TabOrganizationResult,
-      );
+      return await handleApplyTabSuggestions(message.payload as TabOrganizationResult);
 
     case "undo-tab-changes":
       return await handleUndoTabChanges();
@@ -152,14 +170,10 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       return await handleFindDuplicateBookmarks();
 
     case "suggest-bookmark-location":
-      return await handleSuggestBookmarkLocation(
-        message.payload as { bookmark: BookmarkInfo },
-      );
+      return await handleSuggestBookmarkLocation(message.payload as { bookmark: BookmarkInfo });
 
     case "apply-bookmark-suggestions":
-      return await handleApplyBookmarkSuggestions(
-        message.payload as BookmarkApplyPayload,
-      );
+      return await handleApplyBookmarkSuggestions(message.payload as BookmarkApplyPayload);
 
     case "undo-bookmark-changes":
       return await handleUndoBookmarkChanges();
@@ -176,30 +190,22 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       );
 
     case "unlock-bookmark-folder":
-      return await handleUnlockBookmarkFolder(
-        message.payload as { folderId: string },
-      );
+      return await handleUnlockBookmarkFolder(message.payload as { folderId: string });
 
     case "get-locked-tab-groups":
       return await handleGetLockedTabGroups();
 
     case "lock-tab-group":
-      return await handleLockTabGroup(
-        message.payload as { chromeGroupId: number },
-      );
+      return await handleLockTabGroup(message.payload as { chromeGroupId: number });
 
     case "unlock-tab-group":
-      return await handleUnlockTabGroup(
-        message.payload as { chromeGroupId: number },
-      );
+      return await handleUnlockTabGroup(message.payload as { chromeGroupId: number });
 
     case "get-snapshots":
       return { success: true, data: await getSnapshotHistory() };
 
     case "create-snapshot":
-      return await handleCreateSnapshot(
-        message.payload as { label: string; type: SnapshotType },
-      );
+      return await handleCreateSnapshot(message.payload as { label: string; type: SnapshotType });
 
     case "restore-snapshot":
       return await handleRestoreSnapshot(
@@ -207,9 +213,7 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
       );
 
     case "delete-snapshot":
-      await deleteSnapshot(
-        (message.payload as { id: string }).id,
-      );
+      await deleteSnapshot((message.payload as { id: string }).id);
       return { success: true };
 
     case "rename-snapshot": {
@@ -234,13 +238,14 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
 
 async function handleOrganizeTabs(
   granularity?: number,
+  includePinned?: boolean,
   sendProgress?: ProgressSender,
 ): Promise<MessageResponse<TabOrganizationResult>> {
   const settings = await getSettings();
   const allTabs = await queryAllTabs();
   const g = (granularity ?? 3) as import("@/shared/types").GroupingGranularity;
 
-  sendProgress?.(0, 1, `Analyzing ${allTabs.length} tabs...`);
+  sendProgress?.(1, 4, `Preparing ${allTabs.length} tabs...`);
 
   const snapshot: TabSnapshot[] = allTabs.map((t) => ({
     id: t.id,
@@ -249,21 +254,67 @@ async function handleOrganizeTabs(
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
-  // Filter out tabs in locked groups
+  // Filter out pinned tabs (unless included) and tabs in locked groups
+  const shouldExcludePinned = !includePinned;
+  const pinnedTabs = shouldExcludePinned ? allTabs.filter((t) => t.pinned) : [];
+  const candidateTabs = shouldExcludePinned ? allTabs.filter((t) => !t.pinned) : allTabs;
+
   const windowId = allTabs[0]?.windowId;
-  const lockedGroups =
-    windowId !== undefined ? await resolveLockedGroups(windowId) : [];
-  const lockedTabIds = getLockedTabIds(lockedGroups, allTabs);
-  const tabs = allTabs.filter((t) => !lockedTabIds.has(t.id));
+  const lockedGroups = windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+  const lockedTabIds = getLockedTabIds(lockedGroups, candidateTabs);
+  const tabs = candidateTabs.filter((t) => !lockedTabIds.has(t.id));
 
   let result: TabOrganizationResult;
 
-  if (settings.aiTier === "secure") {
+  if (tabs.length === 0) {
+    result = {
+      tabs: [],
+      groups: [],
+      stale: [],
+      duplicates: [],
+      reasoning: "No tabs to organize — all tabs are pinned or in locked groups.",
+    };
+  } else if (settings.aiTier === "secure" && settings.localAIProvider === "rule-based") {
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
+      const modelLabel =
+        settings.aiTier === "secure"
+          ? settings.localAIProvider === "ollama"
+            ? `Ollama (${settings.ollamaModel})`
+            : "Chrome AI"
+          : settings.aiModelProvider === "openrouter"
+            ? `OpenRouter (${settings.openrouterModel})`
+            : settings.aiModelProvider;
+      sendProgress?.(2, 4, `Sending ${tabs.length} tabs to ${modelLabel}...`);
       const provider = await getAIProvider();
-      const aiResult = await provider.organizeTabs(tabs, g);
+      const corrections = await getCorrections();
+      const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+      const startTime = Date.now();
+      const aiResult = await provider.organizeTabs(tabs, {
+        granularity: g,
+        corrections,
+        guidance: settings.tabGuidance,
+        onStatus,
+      });
+      const latencyMs = Date.now() - startTime;
+      sendProgress?.(3, 4, "Processing results...");
+      // Store original AI groups for correction diff at apply time
+      await setSessionData("vxrtx_ai_tab_groups", aiResult.groups);
+
+      // Log experiment for A/B analysis
+      const experimentId = crypto.randomUUID();
+      await setSessionData("vxrtx_experiment_id", experimentId);
+      await appendExperimentLog({
+        id: experimentId,
+        timestamp: Date.now(),
+        variant: "default",
+        model: modelLabel,
+        itemCount: tabs.length,
+        latencyMs,
+        groupCount: aiResult.groups.length,
+      });
+
       result = {
         tabs,
         groups: aiResult.groups,
@@ -278,25 +329,29 @@ async function handleOrganizeTabs(
     }
   }
 
-  if (lockedGroups.length > 0) {
-    result.reasoning = `${lockedGroups.length} locked group(s) excluded. ${result.reasoning ?? ""}`;
+  const exclusions: string[] = [];
+  if (pinnedTabs.length > 0) exclusions.push(`${pinnedTabs.length} pinned tab(s) excluded`);
+  if (lockedGroups.length > 0) exclusions.push(`${lockedGroups.length} locked group(s) excluded`);
+  if (exclusions.length > 0) {
+    result.reasoning = `${exclusions.join(". ")}. ${result.reasoning ?? ""}`;
   }
 
+  sendProgress?.(4, 4, "Done");
   return { success: true, data: result };
 }
 
-async function handleApplyTabSuggestions(
-  result: TabOrganizationResult,
-): Promise<MessageResponse> {
+async function handleApplyTabSuggestions(result: TabOrganizationResult): Promise<MessageResponse> {
   const tabs = await queryAllTabs();
   const windowId = tabs[0]?.windowId;
   if (windowId === undefined) {
     return { success: false, error: "No window found" };
   }
 
-  // Resolve locked groups and build protected tab ID set
+  // Resolve locked groups and build protected tab ID set (includes pinned)
+  const pinnedTabIds = new Set(tabs.filter((t) => t.pinned).map((t) => t.id));
   const lockedGroups = await resolveLockedGroups(windowId);
   const lockedTabIds = getLockedTabIds(lockedGroups, tabs);
+  const protectedTabIds = new Set([...pinnedTabIds, ...lockedTabIds]);
 
   const snapshot: TabSnapshot[] = tabs.map((t) => ({
     id: t.id,
@@ -304,6 +359,15 @@ async function handleApplyTabSuggestions(
     windowId: t.windowId,
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
+
+  // Capture group metadata (names + colors) for restore
+  const liveGroups = windowId !== undefined ? await queryTabGroups(windowId) : [];
+  const tabGroupSnapshots: TabGroupSnapshot[] = liveGroups.map((g) => ({
+    groupId: g.id,
+    title: g.title ?? "",
+    color: g.color as import("@/shared/types").TabGroupColor,
+  }));
+  await setSessionData("vxrtx_tab_group_snapshot", tabGroupSnapshots);
 
   // Persistent auto-snapshot for history
   await addSnapshot({
@@ -315,20 +379,32 @@ async function handleApplyTabSuggestions(
     tabCount: snapshot.length,
     bookmarkCount: 0,
     tabs: snapshot,
+    tabGroups: tabGroupSnapshots,
     bookmarks: [],
   });
 
+  const createdGroupIds: number[] = [];
   for (const group of result.groups) {
     const validTabIds = group.tabIds.filter(
-      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+      (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validTabIds.length === 0) continue;
-    await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
+    const groupId = await createTabGroup({ ...group, tabIds: validTabIds }, windowId);
+    createdGroupIds.push(groupId);
+  }
+
+  // Collapse all newly created groups to reduce tab bar clutter
+  for (const groupId of createdGroupIds) {
+    try {
+      await chrome.tabGroups.update(groupId, { collapsed: true });
+    } catch {
+      // Group may have been removed between creation and collapse
+    }
   }
 
   if (result.stale.length > 0) {
     const validStale = result.stale.filter(
-      (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
+      (id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id),
     );
     if (validStale.length > 0) await closeTabs(validStale);
   }
@@ -337,20 +413,46 @@ async function handleApplyTabSuggestions(
     if (dupSet.length > 1) {
       const validDups = dupSet
         .slice(1)
-        .filter(
-          (id) => !lockedTabIds.has(id) && tabs.some((t) => t.id === id),
-        );
+        .filter((id) => !protectedTabIds.has(id) && tabs.some((t) => t.id === id));
       if (validDups.length > 0) await closeTabs(validDups);
     }
+  }
+
+  // Extract and store correction signals from AI suggestion vs. user-applied diff
+  try {
+    const aiGroups = await getSessionData<TabGroupSuggestion[]>("vxrtx_ai_tab_groups");
+    if (aiGroups && aiGroups.length > 0) {
+      const newCorrections = extractCorrections(aiGroups, result.groups, tabs);
+      const editCount = newCorrections.filter((c) => c.source === "correction").length;
+
+      if (newCorrections.length > 0) {
+        const existing = await getCorrections();
+        const merged = mergeCorrections(existing, newCorrections);
+        await saveCorrections(merged);
+        console.log(
+          `[vxrtx] Saved ${newCorrections.length} correction signal(s), ${merged.length} total stored`,
+        );
+      }
+
+      // Update experiment log with edit count
+      const experimentId = await getSessionData<string>("vxrtx_experiment_id");
+      if (experimentId) {
+        await updateExperimentLog(experimentId, { editCount });
+        console.log(`[vxrtx] Experiment ${experimentId.slice(0, 8)}: ${editCount} edit(s)`);
+        await clearSessionData("vxrtx_experiment_id");
+      }
+
+      await clearSessionData("vxrtx_ai_tab_groups");
+    }
+  } catch (err) {
+    console.warn("[vxrtx] Failed to save corrections:", err);
   }
 
   return { success: true };
 }
 
 async function handleUndoTabChanges(): Promise<MessageResponse> {
-  const snapshot = await getSessionData<TabSnapshot[]>(
-    STORAGE_KEYS.TAB_SNAPSHOT,
-  );
+  const snapshot = await getSessionData<TabSnapshot[]>(STORAGE_KEYS.TAB_SNAPSHOT);
   if (!snapshot || snapshot.length === 0) {
     return { success: false, error: "No undo snapshot available" };
   }
@@ -359,8 +461,7 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
   const windowId = currentTabs[0]?.windowId;
 
   // Resolve locked groups — their tabs must not be ungrouped or moved
-  const lockedGroups =
-    windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+  const lockedGroups = windowId !== undefined ? await resolveLockedGroups(windowId) : [];
   const lockedTabIds = getLockedTabIds(lockedGroups, currentTabs);
 
   // Ungroup all non-locked grouped tabs
@@ -384,21 +485,51 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
     }
   }
 
+  // Load group metadata saved at apply time
+  const savedGroupMeta = await getSessionData<TabGroupSnapshot[]>("vxrtx_tab_group_snapshot");
+  const groupMeta = new Map<number, TabGroupSnapshot>();
+  if (savedGroupMeta) {
+    for (const g of savedGroupMeta) {
+      groupMeta.set(g.groupId, g);
+    }
+  }
+
   if (windowId !== undefined) {
-    for (const tabIds of groupMap.values()) {
-      const validIds = tabIds.filter((id) =>
-        currentTabs.some((t) => t.id === id),
-      );
+    for (const [oldGroupId, tabIds] of groupMap) {
+      const validIds = tabIds.filter((id) => currentTabs.some((t) => t.id === id));
       if (validIds.length > 0) {
-        await chrome.tabs.group({
+        const newGroupId = await chrome.tabs.group({
           tabIds: validIds as [number, ...number[]],
           createProperties: { windowId },
         });
+        const meta = groupMeta.get(oldGroupId);
+        if (meta && (meta.title || meta.color)) {
+          try {
+            await chrome.tabGroups.update(newGroupId, {
+              title: meta.title,
+              color: meta.color as chrome.tabGroups.Color,
+            });
+          } catch {
+            /* group may have been removed */
+          }
+        }
       }
     }
   }
 
   await clearSessionData(STORAGE_KEYS.TAB_SNAPSHOT);
+
+  // Mark the most recent experiment as undone
+  try {
+    const logs = await getExperimentLogs();
+    if (logs.length > 0) {
+      const latest = logs[logs.length - 1];
+      await updateExperimentLog(latest.id, { undone: true });
+    }
+  } catch {
+    /* non-critical */
+  }
+
   return { success: true };
 }
 
@@ -407,11 +538,10 @@ function ruleBasedOrganize(
   staleDays: number,
   granularity: import("@/shared/types").GroupingGranularity = 3,
 ): TabOrganizationResult {
-  const domainMap = groupByDomain(tabs);
   // Lower granularity = larger minGroupSize (fewer groups)
   // 1=Broad → min 4, 2→min 3, 3=Balanced → min 2, 4→min 2, 5=Fine → min 1
   const minGroupSize = granularity <= 1 ? 4 : granularity <= 2 ? 3 : granularity <= 3 ? 2 : 1;
-  const groups = domainToTabGroups(domainMap, minGroupSize);
+  const groups = enhancedRuleBasedGroups(tabs, minGroupSize);
   const duplicates = findDuplicatesByUrl(tabs);
   const stale = findStaleTabs(tabs, staleDays);
 
@@ -420,15 +550,13 @@ function ruleBasedOrganize(
     groups,
     stale,
     duplicates,
-    reasoning: "Grouped by domain (rule-based)",
+    reasoning: "Grouped by domain + title keywords (rule-based)",
   };
 }
 
 // ─── Tab Group Locking ──────────────────────────────────────────────
 
-async function resolveLockedGroups(
-  windowId: number,
-): Promise<LockedTabGroup[]> {
+async function resolveLockedGroups(windowId: number): Promise<LockedTabGroup[]> {
   const stored = await getLockedTabGroups();
   if (stored.length === 0) return [];
 
@@ -463,9 +591,7 @@ async function handleGetLockedTabGroups(): Promise<
   return { success: true, data: { locked, dormant } };
 }
 
-async function handleLockTabGroup(
-  payload: { chromeGroupId: number },
-): Promise<MessageResponse> {
+async function handleLockTabGroup(payload: { chromeGroupId: number }): Promise<MessageResponse> {
   try {
     const group = await chrome.tabGroups.get(payload.chromeGroupId);
     const stored = await getLockedTabGroups();
@@ -491,21 +617,19 @@ async function handleLockTabGroup(
   }
 }
 
-async function handleUnlockTabGroup(
-  payload: { chromeGroupId: number },
-): Promise<MessageResponse> {
+async function handleUnlockTabGroup(payload: { chromeGroupId: number }): Promise<MessageResponse> {
   const stored = await getLockedTabGroups();
-  await saveLockedTabGroups(
-    stored.filter((g) => g.chromeGroupId !== payload.chromeGroupId),
-  );
+  await saveLockedTabGroups(stored.filter((g) => g.chromeGroupId !== payload.chromeGroupId));
   return { success: true };
 }
 
 // ─── Bookmark Folder Locking ────────────────────────────────────────
 
-async function handleLockBookmarkFolder(
-  payload: { folderId: string; title: string; path: string },
-): Promise<MessageResponse> {
+async function handleLockBookmarkFolder(payload: {
+  folderId: string;
+  title: string;
+  path: string;
+}): Promise<MessageResponse> {
   const stored = await getLockedBookmarkFolders();
   if (stored.some((f) => f.folderId === payload.folderId)) {
     return { success: true };
@@ -520,13 +644,9 @@ async function handleLockBookmarkFolder(
   return { success: true };
 }
 
-async function handleUnlockBookmarkFolder(
-  payload: { folderId: string },
-): Promise<MessageResponse> {
+async function handleUnlockBookmarkFolder(payload: { folderId: string }): Promise<MessageResponse> {
   const stored = await getLockedBookmarkFolders();
-  await saveLockedBookmarkFolders(
-    stored.filter((f) => f.folderId !== payload.folderId),
-  );
+  await saveLockedBookmarkFolders(stored.filter((f) => f.folderId !== payload.folderId));
   return { success: true };
 }
 
@@ -565,46 +685,139 @@ async function handleOrganizeBookmarks(
   const folders = extractFolders(tree);
 
   // Snapshot for undo
-  await setSessionData(
-    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
-    snapshotBookmarks(allBookmarks),
-  );
+  await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, snapshotBookmarks(allBookmarks));
 
   // Filter out bookmarks in locked folders
   const lockedFolders = await getLockedBookmarkFolders();
   const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
   const bookmarks = allBookmarks.filter((b) => !lockedBookmarkIds.has(b.id));
 
-  sendProgress?.(0, 1, `Analyzing ${bookmarks.length} bookmarks...`);
+  sendProgress?.(1, 4, `Preparing ${bookmarks.length} bookmarks...`);
 
-  if (settings.aiTier === "secure") {
-    // Rule-based: no restructuring, just return current state
+  if (settings.aiTier === "secure" && settings.localAIProvider === "rule-based") {
+    const ruleResult = ruleBasedBookmarkOrganize(bookmarks, g);
+    return {
+      success: true,
+      data: { bookmarks, folders, result: ruleResult },
+    };
+  }
+
+  const modelLabel =
+    settings.aiModelProvider === "openrouter"
+      ? `OpenRouter (${settings.openrouterModel})`
+      : settings.aiModelProvider;
+
+  try {
+    const provider = await getAIProvider();
+    const BATCH_SIZE = 100;
+    const startTime = Date.now();
+
+    if (bookmarks.length <= BATCH_SIZE) {
+      // Small enough for a single call
+      console.log(
+        `[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks (single batch), model=${modelLabel}, granularity=${g}`,
+      );
+      sendProgress?.(2, 4, `Sending ${bookmarks.length} bookmarks to ${modelLabel}...`);
+      const onStatus = (msg: string) => sendProgress?.(2, 4, msg);
+      const aiResult = await provider.organizeBookmarks(bookmarks, {
+        granularity: g,
+        guidance: settings.bookmarkGuidance,
+        onStatus,
+      });
+      console.log(
+        `[vxrtx] Bookmark organize complete: ${((Date.now() - startTime) / 1000).toFixed(1)}s, ${aiResult.folders.length} folders`,
+      );
+      sendProgress?.(3, 4, "Processing results...");
+      return { success: true, data: { bookmarks, folders, result: aiResult } };
+    }
+
+    // Batch processing for large collections
+    const batches: BookmarkInfo[][] = [];
+    for (let i = 0; i < bookmarks.length; i += BATCH_SIZE) {
+      batches.push(bookmarks.slice(i, i + BATCH_SIZE));
+    }
+    console.log(
+      `[vxrtx] Bookmark organize: ${bookmarks.length} bookmarks in ${batches.length} batches, model=${modelLabel}, granularity=${g}`,
+    );
+
+    const allFolders: Map<string, string[]> = new Map(); // lowercased path → bookmarkIds
+    const nameMap = new Map<string, string>(); // lowercased path → first-seen original casing
+    const allDuplicates: string[][] = [];
+    const reasonings: string[] = [];
+
+    for (let bi = 0; bi < batches.length; bi++) {
+      const batch = batches[bi];
+      sendProgress?.(
+        bi + 1,
+        batches.length + 1,
+        `Batch ${bi + 1}/${batches.length}: analyzing ${batch.length} bookmarks...`,
+      );
+      console.log(`[vxrtx] Batch ${bi + 1}/${batches.length}: ${batch.length} bookmarks`);
+
+      try {
+        const onStatus = (msg: string) => sendProgress?.(bi + 1, batches.length + 1, msg);
+        const batchResult = await provider.organizeBookmarks(batch, {
+          granularity: g,
+          guidance: settings.bookmarkGuidance,
+          onStatus,
+        });
+
+        // Merge folders: consolidate by path (case-insensitive)
+        for (const folder of batchResult.folders) {
+          const key = folder.name.toLowerCase().trim();
+          if (!nameMap.has(key)) {
+            nameMap.set(key, folder.name); // preserve first-seen casing
+          }
+          const existing = allFolders.get(key);
+          if (existing) {
+            existing.push(...folder.bookmarkIds);
+          } else {
+            allFolders.set(key, [...folder.bookmarkIds]);
+          }
+        }
+        if (batchResult.duplicates.length > 0) {
+          allDuplicates.push(...batchResult.duplicates);
+        }
+        if (batchResult.reasoning) {
+          reasonings.push(batchResult.reasoning);
+        }
+      } catch (batchErr) {
+        console.warn(`[vxrtx] Batch ${bi + 1} failed:`, batchErr);
+        reasonings.push(
+          `Batch ${bi + 1} failed: ${batchErr instanceof Error ? batchErr.message : String(batchErr)}`,
+        );
+      }
+    }
+
+    // Build merged result using first-seen casing for folder names
+    const mergedFolders = Array.from(allFolders.entries()).map(([key, bookmarkIds]) => ({
+      name: nameMap.get(key) ?? key,
+      bookmarkIds,
+      parentId: undefined as string | undefined,
+    }));
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(
+      `[vxrtx] Bookmark organize complete: ${elapsed}s, ${mergedFolders.length} folders from ${batches.length} batches`,
+    );
+    sendProgress?.(batches.length + 1, batches.length + 1, "Done");
+
     return {
       success: true,
       data: {
         bookmarks,
         folders,
         result: {
-          folders: [],
+          folders: mergedFolders,
           moves: [],
-          duplicates: [],
+          duplicates: allDuplicates,
           newFolders: [],
-          reasoning:
-            "Local AI not yet available. Showing current bookmarks. Switch to Relaxed/YOLO tier for AI-powered organization.",
+          reasoning: `Processed ${bookmarks.length} bookmarks in ${batches.length} batches (${elapsed}s). ${reasonings[0] ?? ""}`,
         },
       },
     };
-  }
-
-  try {
-    const provider = await getAIProvider();
-    const aiResult = await provider.organizeBookmarks(bookmarks, g);
-    return {
-      success: true,
-      data: { bookmarks, folders, result: aiResult },
-    };
   } catch (err) {
-    console.warn("AI bookmark organization failed:", err);
+    console.error("[vxrtx] Bookmark organize FAILED:", err);
     return {
       success: true,
       data: {
@@ -622,9 +835,7 @@ async function handleOrganizeBookmarks(
   }
 }
 
-async function handleFindDuplicateBookmarks(): Promise<
-  MessageResponse<BookmarkDuplicateResponse>
-> {
+async function handleFindDuplicateBookmarks(): Promise<MessageResponse<BookmarkDuplicateResponse>> {
   const tree = await getBookmarkTree();
   const allBookmarks = flattenBookmarks(tree);
   const folderPathMap = buildFolderPathMap(tree);
@@ -642,37 +853,29 @@ async function handleFindDuplicateBookmarks(): Promise<
   }
 
   // Snapshot for undo
-  await setSessionData(
-    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
-    snapshotBookmarks(bookmarks),
-  );
+  await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, snapshotBookmarks(bookmarks));
 
   return { success: true, data: { duplicates, folderPaths } };
 }
 
-async function handleSuggestBookmarkLocation(
-  payload: { bookmark: BookmarkInfo },
-): Promise<MessageResponse<BookmarkLocationResponse>> {
+async function handleSuggestBookmarkLocation(payload: {
+  bookmark: BookmarkInfo;
+}): Promise<MessageResponse<BookmarkLocationResponse>> {
   const settings = await getSettings();
-
-  if (settings.aiTier === "secure") {
-    return {
-      success: false,
-      error:
-        "Local AI not yet available for bookmark suggestions. Switch to Relaxed/YOLO tier.",
-    };
-  }
 
   const tree = await getBookmarkTree();
   const folders = extractFolders(tree);
+
+  if (settings.aiTier === "secure") {
+    // Rule-based: suggest folders whose name matches the bookmark's domain
+    const suggestions = suggestFolderByDomain(payload.bookmark, folders);
+    return { success: true, data: { suggestions } };
+  }
   const folderInput = folders.map((f) => ({ id: f.id, path: f.path }));
 
   try {
     const provider = await getAIProvider();
-    const suggestions = await provider.suggestBookmarkLocation(
-      payload.bookmark,
-      folderInput,
-    );
+    const suggestions = await provider.suggestBookmarkLocation(payload.bookmark, folderInput);
     return { success: true, data: { suggestions } };
   } catch (err) {
     return {
@@ -682,44 +885,144 @@ async function handleSuggestBookmarkLocation(
   }
 }
 
+/**
+ * Rule-based folder suggestion: match bookmark's domain against existing folder names/paths.
+ */
+function suggestFolderByDomain(
+  bookmark: BookmarkInfo,
+  folders: FolderInfo[],
+): LocationSuggestion[] {
+  if (!bookmark.url) return [];
+
+  let domain: string;
+  try {
+    domain = new URL(bookmark.url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return [];
+  }
+
+  const domainWord = domain.split(".")[0]; // "github" from "github.com"
+  const suggestions: LocationSuggestion[] = [];
+
+  for (const folder of folders) {
+    const folderLower = folder.title.toLowerCase();
+    const pathLower = folder.path.toLowerCase();
+
+    // Exact domain word match in folder name
+    if (folderLower.includes(domainWord)) {
+      suggestions.push({
+        folderId: folder.id,
+        folderPath: folder.path,
+        confidence: 0.8,
+        reason: `Folder name matches domain "${domain}"`,
+      });
+    }
+    // Partial match in folder path
+    else if (pathLower.includes(domainWord)) {
+      suggestions.push({
+        folderId: folder.id,
+        folderPath: folder.path,
+        confidence: 0.5,
+        reason: `Folder path contains "${domainWord}"`,
+      });
+    }
+  }
+
+  // Sort by confidence, take top 3
+  suggestions.sort((a, b) => b.confidence - a.confidence);
+  return suggestions.slice(0, 3);
+}
+
+/**
+ * Create a nested folder path like "Dev/Frontend". Splits on "/", creates
+ * intermediate folders, and returns the leaf folder's ID. Uses a cache to
+ * avoid creating duplicate parents within the same apply operation.
+ */
+async function createFolderPath(
+  path: string,
+  rootParentId: string,
+  cache: Map<string, string>,
+): Promise<string> {
+  const segments = path
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return rootParentId;
+
+  let currentParentId = rootParentId;
+  let currentPath = "";
+
+  for (const segment of segments) {
+    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+    const cacheKey = `${currentPath.toLowerCase()}:${rootParentId}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      currentParentId = cached;
+      continue;
+    }
+
+    const created = await createFolder(segment, currentParentId);
+    cache.set(cacheKey, created.id);
+    currentParentId = created.id;
+  }
+
+  return currentParentId;
+}
+
 async function handleApplyBookmarkSuggestions(
   payload: BookmarkApplyPayload,
 ): Promise<MessageResponse> {
+  console.log(
+    `[vxrtx] Applying bookmark suggestions: ${payload.moves.length} moves, ${payload.newFolders.length} new folders, ${payload.removals.length} removals`,
+  );
+
   // Re-snapshot before applying
   const tree = await getBookmarkTree();
   const bookmarks = flattenBookmarks(tree);
   const bmSnapshot = snapshotBookmarks(bookmarks);
-  await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, bmSnapshot);
+  console.log(`[vxrtx] Bookmark snapshot: ${bmSnapshot.length} entries`);
+
+  try {
+    await setSessionData(STORAGE_KEYS.BOOKMARK_SNAPSHOT, bmSnapshot);
+  } catch (err) {
+    console.error("[vxrtx] Failed to save session snapshot:", err);
+  }
 
   // Persistent auto-snapshot for history
-  await addSnapshot({
-    id: crypto.randomUUID(),
-    timestamp: Date.now(),
-    type: "bookmarks",
-    label: "Before bookmark organization",
-    source: "auto",
-    tabCount: 0,
-    bookmarkCount: bmSnapshot.length,
-    tabs: [],
-    bookmarks: bmSnapshot,
-  });
+  try {
+    await addSnapshot({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      type: "bookmarks",
+      label: "Before bookmark organization",
+      source: "auto",
+      tabCount: 0,
+      bookmarkCount: bmSnapshot.length,
+      tabs: [],
+      bookmarks: bmSnapshot,
+    });
+    console.log(`[vxrtx] Auto-snapshot saved to history`);
+  } catch (err) {
+    console.error("[vxrtx] Failed to save auto-snapshot:", err);
+  }
 
   // Build locked set so we never move/remove locked bookmarks
   const lockedFolders = await getLockedBookmarkFolders();
   const lockedBookmarkIds = getDeepLockedBookmarkIds(lockedFolders, tree);
 
-  // Create new folders first and build a map of placeholder → real ID
+  // Create new folders (with hierarchical path support) and build a map of placeholder → real ID
   const folderIdMap = new Map<string, string>();
+  const folderPathCache = new Map<string, string>(); // cache to avoid duplicate intermediate folders
   for (const folder of payload.newFolders) {
-    const created = await createFolder(folder.name, folder.parentId);
-    folderIdMap.set(`${folder.name}:${folder.parentId}`, created.id);
+    const leafId = await createFolderPath(folder.name, folder.parentId, folderPathCache);
+    folderIdMap.set(`${folder.name}:${folder.parentId}`, leafId);
   }
 
   // Apply moves (skip locked bookmarks)
   for (const move of payload.moves) {
     if (lockedBookmarkIds.has(move.bookmarkId)) continue;
-    const resolvedFolderId =
-      folderIdMap.get(move.targetFolderId) ?? move.targetFolderId;
+    const resolvedFolderId = folderIdMap.get(move.targetFolderId) ?? move.targetFolderId;
     try {
       await moveBookmark(move.bookmarkId, { parentId: resolvedFolderId });
     } catch (err) {
@@ -755,9 +1058,7 @@ async function handleCleanupEmptyFolders(): Promise<MessageResponse> {
 }
 
 async function handleUndoBookmarkChanges(): Promise<MessageResponse> {
-  const snapshot = await getSessionData<BookmarkSnapshot[]>(
-    STORAGE_KEYS.BOOKMARK_SNAPSHOT,
-  );
+  const snapshot = await getSessionData<BookmarkSnapshot[]>(STORAGE_KEYS.BOOKMARK_SNAPSHOT);
   if (!snapshot || snapshot.length === 0) {
     return { success: false, error: "No undo snapshot available" };
   }
@@ -780,10 +1081,12 @@ async function handleUndoBookmarkChanges(): Promise<MessageResponse> {
 
 // ─── Snapshot Management ──────────────────────────────────────────────
 
-async function handleCreateSnapshot(
-  payload: { label: string; type: SnapshotType },
-): Promise<MessageResponse> {
+async function handleCreateSnapshot(payload: {
+  label: string;
+  type: SnapshotType;
+}): Promise<MessageResponse> {
   let tabs: TabSnapshot[] = [];
+  let tabGroups: TabGroupSnapshot[] = [];
   let bmSnapshots: BookmarkSnapshot[] = [];
 
   if (payload.type === "tabs" || payload.type === "both") {
@@ -793,6 +1096,15 @@ async function handleCreateSnapshot(
       groupId: t.groupId,
       windowId: t.windowId,
     }));
+    const windowId = allTabs[0]?.windowId;
+    if (windowId !== undefined) {
+      const liveGroups = await queryTabGroups(windowId);
+      tabGroups = liveGroups.map((g) => ({
+        groupId: g.id,
+        title: g.title ?? "",
+        color: g.color as import("@/shared/types").TabGroupColor,
+      }));
+    }
   }
 
   if (payload.type === "bookmarks" || payload.type === "both") {
@@ -810,15 +1122,21 @@ async function handleCreateSnapshot(
     tabCount: tabs.length,
     bookmarkCount: bmSnapshots.length,
     tabs,
+    tabGroups: tabGroups.length > 0 ? tabGroups : undefined,
     bookmarks: bmSnapshots,
   });
 
   return { success: true };
 }
 
-async function handleRestoreSnapshot(
-  payload: { id: string; restoreType: SnapshotType },
-): Promise<MessageResponse<{ tabsRestored: number; tabsSkipped: number; bookmarksRestored: number; bookmarksSkipped: number }>> {
+async function handleRestoreSnapshot(payload: { id: string; restoreType: SnapshotType }): Promise<
+  MessageResponse<{
+    tabsRestored: number;
+    tabsSkipped: number;
+    bookmarksRestored: number;
+    bookmarksSkipped: number;
+  }>
+> {
   const history = await getSnapshotHistory();
   const snapshot = history.find((s) => s.id === payload.id);
   if (!snapshot) {
@@ -838,8 +1156,7 @@ async function handleRestoreSnapshot(
     const currentTabs = await queryAllTabs();
     const windowId = currentTabs[0]?.windowId;
 
-    const lockedGroups =
-      windowId !== undefined ? await resolveLockedGroups(windowId) : [];
+    const lockedGroups = windowId !== undefined ? await resolveLockedGroups(windowId) : [];
     const lockedTabIds = getLockedTabIds(lockedGroups, currentTabs);
 
     // Ungroup all non-locked grouped tabs
@@ -863,18 +1180,36 @@ async function handleRestoreSnapshot(
       }
     }
 
+    // Build lookup for group metadata (name + color)
+    const groupMeta = new Map<number, TabGroupSnapshot>();
+    if (snapshot.tabGroups) {
+      for (const g of snapshot.tabGroups) {
+        groupMeta.set(g.groupId, g);
+      }
+    }
+
     if (windowId !== undefined) {
-      for (const tabIds of groupMap.values()) {
-        const validIds = tabIds.filter((id) =>
-          currentTabs.some((t) => t.id === id),
-        );
+      for (const [oldGroupId, tabIds] of groupMap) {
+        const validIds = tabIds.filter((id) => currentTabs.some((t) => t.id === id));
         tabsRestored += validIds.length;
         tabsSkipped += tabIds.length - validIds.length;
         if (validIds.length > 0) {
-          await chrome.tabs.group({
+          const newGroupId = await chrome.tabs.group({
             tabIds: validIds as [number, ...number[]],
             createProperties: { windowId },
           });
+          // Restore group name and color if we have metadata
+          const meta = groupMeta.get(oldGroupId);
+          if (meta && (meta.title || meta.color)) {
+            try {
+              await chrome.tabGroups.update(newGroupId, {
+                title: meta.title,
+                color: meta.color as chrome.tabGroups.Color,
+              });
+            } catch {
+              // Group may have been removed between creation and update
+            }
+          }
         }
       }
     }

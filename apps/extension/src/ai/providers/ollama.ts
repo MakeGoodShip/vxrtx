@@ -12,15 +12,10 @@ import {
 } from "../parser";
 import {
   bookmarksToRelaxedInput,
-  bookmarksToYoloInput,
   buildBookmarkLocationPrompt,
   buildBookmarkOrganizePrompt,
 } from "../prompts/bookmark-grouping";
-import {
-  buildTabGroupingPrompt,
-  tabsToRelaxedInput,
-  tabsToYoloInput,
-} from "../prompts/tab-grouping";
+import { buildTabGroupingPrompt, tabsToRelaxedInput } from "../prompts/tab-grouping";
 import {
   type AIProvider,
   aiMaxTokens,
@@ -34,15 +29,14 @@ import {
 } from "../types";
 
 /**
- * OpenRouter provider — unified gateway to Claude, GPT, Llama, Mistral, etc.
- * Uses OpenAI-compatible chat completions API.
- * Users get one key at openrouter.ai that works with many models.
+ * Ollama provider — connects to a local Ollama instance via its OpenAI-compatible API.
+ * Runs entirely on the user's machine. No data leaves the device.
+ * Requires Ollama to be installed and running (ollama.com).
  */
-export class OpenRouterProvider implements AIProvider {
+export class OllamaProvider implements AIProvider {
   constructor(
-    private apiKey: string,
+    private baseUrl: string,
     private model: string,
-    private includeUrls: boolean,
   ) {}
 
   async organizeTabs(
@@ -50,9 +44,9 @@ export class OpenRouterProvider implements AIProvider {
     options?: OrganizeTabsOptions,
   ): Promise<TabOrganizationAIResult> {
     const { granularity, corrections, guidance, onStatus } = options ?? {};
-    const input = this.includeUrls ? tabsToYoloInput(tabs) : tabsToRelaxedInput(tabs);
+    const input = tabsToRelaxedInput(tabs); // Secure tier: titles only, no URLs
     const prompt = buildTabGroupingPrompt(input, {
-      includeUrls: this.includeUrls,
+      includeUrls: false,
       granularity,
       corrections,
       guidance,
@@ -69,11 +63,9 @@ export class OpenRouterProvider implements AIProvider {
     options?: OrganizeBookmarksOptions,
   ): Promise<BookmarkOrganizationResult> {
     const { granularity, guidance, onStatus } = options ?? {};
-    const input = this.includeUrls
-      ? bookmarksToYoloInput(bookmarks)
-      : bookmarksToRelaxedInput(bookmarks);
+    const input = bookmarksToRelaxedInput(bookmarks);
     const prompt = buildBookmarkOrganizePrompt(input, {
-      includeUrls: this.includeUrls,
+      includeUrls: false,
       granularity,
       guidance,
     });
@@ -96,12 +88,8 @@ export class OpenRouterProvider implements AIProvider {
     folders: { id: string; path: string }[],
     onStatus?: StatusCallback,
   ): Promise<LocationSuggestion[]> {
-    const input = this.includeUrls
-      ? { id: bookmark.id, title: bookmark.title, url: bookmark.url }
-      : { id: bookmark.id, title: bookmark.title };
-    const prompt = buildBookmarkLocationPrompt(input, folders, {
-      includeUrls: this.includeUrls,
-    });
+    const input = { id: bookmark.id, title: bookmark.title };
+    const prompt = buildBookmarkLocationPrompt(input, folders, { includeUrls: false });
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, folders.length, errorContext),
       parseBookmarkLocation,
@@ -115,67 +103,54 @@ export class OpenRouterProvider implements AIProvider {
     itemCount: number,
     errorContext?: string,
   ): Promise<string> {
-    if (!this.apiKey) throw new Error("OpenRouter API key not configured");
-
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
     const timeout = aiTimeoutMs(itemCount);
-    const promptChars = userContent.length;
-
     const maxTokens = aiMaxTokens(itemCount);
+    const url = `${this.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+
     console.log(
-      `[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, max_tokens=${maxTokens}, timeout=${Math.round(timeout / 1000)}s`,
+      `[vxrtx] Ollama request: model=${this.model}, items=${itemCount}, prompt=${userContent.length} chars, timeout=${Math.round(timeout / 1000)}s`,
     );
     const startTime = Date.now();
 
-    let response: Response;
-    try {
-      response = await fetchWithTimeout(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-            "HTTP-Referer": "https://github.com/vxrtx",
-            "X-Title": "vxrtx",
-          },
-          body: JSON.stringify({
-            model: this.model,
-            messages: [
-              { role: "system", content: SYSTEM_MESSAGE },
-              { role: "user", content: userContent },
-            ],
-            temperature: 0.0,
-            max_tokens: maxTokens,
-          }),
-        },
-        timeout,
-      );
-    } catch (err) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.error(`[vxrtx] OpenRouter fetch failed after ${elapsed}s:`, err);
-      throw err;
-    }
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: "system", content: SYSTEM_MESSAGE },
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.0,
+          max_tokens: maxTokens,
+          stream: false,
+        }),
+      },
+      timeout,
+    );
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     if (!response.ok) {
       const err = await response.text();
-      console.error(`[vxrtx] OpenRouter API error after ${elapsed}s: ${response.status}`, err);
-      throw new Error(`OpenRouter API error (${response.status}): ${err}`);
+      console.error(`[vxrtx] Ollama API error after ${elapsed}s: ${response.status}`, err);
+      throw new Error(`Ollama error (${response.status}): ${err}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
       console.error(
-        `[vxrtx] OpenRouter empty response after ${elapsed}s:`,
+        `[vxrtx] Ollama empty response after ${elapsed}s:`,
         JSON.stringify(data).slice(0, 500),
       );
-      throw new Error("No content in OpenRouter response");
+      throw new Error("No content in Ollama response");
     }
 
-    console.log(`[vxrtx] OpenRouter response: ${elapsed}s, ${content.length} chars`);
+    console.log(`[vxrtx] Ollama response: ${elapsed}s, ${content.length} chars`);
     return content;
   }
 }

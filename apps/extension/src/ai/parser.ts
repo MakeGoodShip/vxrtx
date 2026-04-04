@@ -1,17 +1,27 @@
 import { z } from "zod";
-import type { TabOrganizationAIResult } from "./types";
 import type { TabGroupColor } from "@/shared/types";
+import type { TabOrganizationAIResult } from "./types";
 
 const TAB_GROUP_COLORS: TabGroupColor[] = [
-  "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange",
+  "grey",
+  "blue",
+  "red",
+  "yellow",
+  "green",
+  "pink",
+  "purple",
+  "cyan",
+  "orange",
 ];
 
 const TabGroupSuggestionSchema = z.object({
-  name: z.string(),
-  color: z.string().transform((c) =>
-    TAB_GROUP_COLORS.includes(c as TabGroupColor) ? c as TabGroupColor : "grey"
-  ),
-  tabIds: z.array(z.number()),
+  name: z.string().trim().min(1, "Group name must not be empty"),
+  color: z
+    .string()
+    .transform((c) =>
+      TAB_GROUP_COLORS.includes(c as TabGroupColor) ? (c as TabGroupColor) : "grey",
+    ),
+  tabIds: z.array(z.number()).min(1, "Group must contain at least one tab"),
 });
 
 const TabOrganizationSchema = z.object({
@@ -22,8 +32,16 @@ const TabOrganizationSchema = z.object({
 });
 
 const BookmarkFolderSchema = z.object({
-  name: z.string(),
-  bookmarkIds: z.array(z.string()),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Folder name must not be empty")
+    .refine(
+      (n) => !n.startsWith("/") && !n.endsWith("/") && !n.includes("//"),
+      "Folder name must not have leading/trailing or double slashes",
+    )
+    .refine((n) => n.split("/").length <= 3, "Folder nesting must not exceed 3 levels"),
+  bookmarkIds: z.array(z.string()).min(1, "Folder must contain at least one bookmark"),
 });
 
 const BookmarkOrganizationSchema = z.object({
@@ -42,6 +60,55 @@ const LocationSuggestionSchema = z.object({
 const BookmarkLocationSchema = z.object({
   suggestions: z.array(LocationSuggestionSchema),
 });
+
+class JsonExtractionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "JsonExtractionError";
+  }
+}
+
+function isRetryableParseError(err: unknown): boolean {
+  return (
+    err instanceof SyntaxError || err instanceof z.ZodError || err instanceof JsonExtractionError
+  );
+}
+
+/**
+ * Retry wrapper: attempts parse, on failure retries the LLM call with error context.
+ * Max 1 retry (2 total attempts). Only retries on parse/validation failures — API and runtime errors propagate immediately.
+ */
+export async function withRetry<T>(
+  completeFn: (errorContext?: string) => Promise<string>,
+  parseFn: (raw: string) => T,
+  onStatus?: (message: string) => void,
+): Promise<T> {
+  // First attempt: let API errors propagate, only catch retryable parse/validation failures
+  onStatus?.("Waiting for AI response...");
+  const raw = await completeFn();
+  onStatus?.("Processing AI response...");
+  try {
+    return parseFn(raw);
+  } catch (parseErr) {
+    if (!isRetryableParseError(parseErr)) {
+      throw parseErr;
+    }
+    // Parse failed — retry with error context
+    onStatus?.("Response invalid, retrying...");
+    const errMsg = (parseErr instanceof Error ? parseErr.message : String(parseErr)).slice(0, 500);
+    const errorContext = `Your previous response failed validation: ${errMsg}. Return ONLY valid JSON matching the schema exactly.`;
+    const retryRaw = await completeFn(errorContext);
+    onStatus?.("Processing retry response...");
+    try {
+      return parseFn(retryRaw);
+    } catch (secondErr) {
+      throw new Error(
+        `AI response could not be parsed after 2 attempts. Last error: ${secondErr instanceof Error ? secondErr.message : String(secondErr)}`,
+        { cause: secondErr },
+      );
+    }
+  }
+}
 
 export function parseTabOrganization(raw: string): TabOrganizationAIResult {
   const json = extractJson(raw);
@@ -77,6 +144,6 @@ function extractJson(text: string): unknown {
       return JSON.parse(text.slice(firstBrace, lastBrace + 1));
     }
 
-    throw new Error("No valid JSON found in AI response");
+    throw new JsonExtractionError("No valid JSON found in AI response");
   }
 }

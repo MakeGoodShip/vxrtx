@@ -8,6 +8,7 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
+    "typecheck": "turbo typecheck",
     "dev:extension": "pnpm --filter @vxrtx/extension dev",
     "dev:ext": "pnpm --filter @vxrtx/extension dev",
     "dev:web": "pnpm --filter @vxrtx/web dev",
@@ -18,11 +19,14 @@
     "build:docs": "pnpm --filter @vxrtx/docs build"
   },
   "devDependencies": {
-    "turbo": "^2.5.4"
+    "@biomejs/biome": "^2.0.0",
+    "lefthook": "^1.11.0",
+    "turbo": "^2.9.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "lefthook",
       "sharp"
     ]
   }

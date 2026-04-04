@@ -1,0 +1,20 @@
+{
+  "description": "Personal bookmarks with duplicates: finance, travel, outdoors",
+  "input": [
+    { "id": "b1", "title": "Mint - Budget Dashboard" },
+    { "id": "b2", "title": "Airbnb: Tokyo Apartments" },
+    { "id": "b3", "title": "Google Flights" },
+    { "id": "b4", "title": "Vanguard - 401k" },
+    { "id": "b5", "title": "AllTrails: Best Hikes" },
+    { "id": "b6", "title": "Mint - Budget Dashboard" }
+  ],
+  "validResponse": "{\"folders\":[{\"name\":\"Finance\",\"bookmarkIds\":[\"b1\",\"b4\",\"b6\"]},{\"name\":\"Travel\",\"bookmarkIds\":[\"b2\",\"b3\"]},{\"name\":\"Outdoors\",\"bookmarkIds\":[\"b5\"]}],\"duplicates\":[[\"b1\",\"b6\"]],\"reasoning\":\"Finance tools grouped, travel planning grouped, duplicate Mint detected.\"}",
+  "goldenLabels": {
+    "b1": "Finance",
+    "b2": "Travel",
+    "b3": "Travel",
+    "b4": "Finance",
+    "b5": "Outdoors",
+    "b6": "Finance"
+  }
+}

@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from "react";
-import { sendMessage, sendLongRunningMessage, type ProgressUpdate } from "@/shared/messaging";
+import { useEffect, useRef, useState } from "react";
+import { type ProgressUpdate, sendLongRunningMessage, sendMessage } from "@/shared/messaging";
 import type {
+  BookmarkDuplicateGroup,
   BookmarkInfo,
   BookmarkOrganizationResult,
-  BookmarkDuplicateGroup,
   FolderInfo,
+  GroupingGranularity,
   LocationSuggestion,
   LockedBookmarkFolder,
-  GroupingGranularity,
 } from "@/shared/types";
 import { GranularitySlider } from "../components/GranularitySlider";
+import { GuidanceInput } from "../components/GuidanceInput";
 
 type Mode = "menu" | "organize" | "locate" | "duplicates" | "cleanup";
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
@@ -34,12 +35,8 @@ export function BookmarkOrganizer() {
       {mode === "menu" && <ModeMenu onSelect={setMode} />}
       {mode === "organize" && <OrganizeMode onBack={() => setMode("menu")} />}
       {mode === "locate" && <LocateMode onBack={() => setMode("menu")} />}
-      {mode === "duplicates" && (
-        <DuplicatesMode onBack={() => setMode("menu")} />
-      )}
-      {mode === "cleanup" && (
-        <CleanupMode onBack={() => setMode("menu")} />
-      )}
+      {mode === "duplicates" && <DuplicatesMode onBack={() => setMode("menu")} />}
+      {mode === "cleanup" && <CleanupMode onBack={() => setMode("menu")} />}
     </div>
   );
 }
@@ -51,7 +48,7 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
 
   useEffect(() => {
     loadFoldersAndLocks();
-  }, []);
+  }, [loadFoldersAndLocks]);
 
   async function loadFoldersAndLocks() {
     // Load top-level bookmark folders
@@ -82,9 +79,7 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       // May not have access yet
     }
 
-    const res = await sendMessage<void, LockedBookmarkFolder[]>(
-      "get-locked-bookmark-folders",
-    );
+    const res = await sendMessage<void, LockedBookmarkFolder[]>("get-locked-bookmark-folders");
     if (res.success && res.data) {
       setLockedIds(new Set(res.data.map((f) => f.folderId)));
     }
@@ -117,7 +112,16 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       id: "organize" as Mode,
       title: "Reorganize",
       icon: (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M2 4h10M2 7h7M2 10h4" />
         </svg>
       ),
@@ -126,7 +130,16 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       id: "locate" as Mode,
       title: "Place",
       icon: (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M7 1.5v11M4 9.5l3 3 3-3" />
         </svg>
       ),
@@ -135,7 +148,16 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       id: "duplicates" as Mode,
       title: "Duplicates",
       icon: (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <rect x="1.5" y="3.5" width="8" height="8" rx="1" />
           <path d="M4.5 3.5V2.5a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-1" />
         </svg>
@@ -145,7 +167,16 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
       id: "cleanup" as Mode,
       title: "Clean Up",
       icon: (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M1.5 3.5a1 1 0 011-1h2.5l1 1.5h4a1 1 0 011 1v4.5a1 1 0 01-1 1h-7.5a1 1 0 01-1-1z" />
           <path d="M5.5 7l3 0" />
         </svg>
@@ -173,9 +204,7 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
           <h3 className="text-sm font-medium text-zinc-300">
             Bookmark Folders
             {lockedIds.size > 0 && (
-              <span className="ml-1 text-xs text-zinc-500">
-                ({lockedIds.size} locked)
-              </span>
+              <span className="ml-1 text-xs text-zinc-500">({lockedIds.size} locked)</span>
             )}
           </h3>
           <p className="text-xs text-zinc-600">
@@ -188,51 +217,83 @@ function ModeMenu({ onSelect }: { onSelect: (mode: Mode) => void }) {
             placeholder="Filter folders..."
             className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-brand-400 focus:outline-none"
           />
-          {folders.filter((f) =>
-            folderFilter
-              ? f.title.toLowerCase().includes(folderFilter.toLowerCase()) ||
-                f.path.toLowerCase().includes(folderFilter.toLowerCase())
-              : true,
-          ).map((folder) => {
-            const isLocked = lockedIds.has(folder.id);
-            return (
-              <div
-                key={folder.id}
-                className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
-                  isLocked
-                    ? "border-amber-800/50 bg-amber-950/10"
-                    : "border-zinc-800 bg-zinc-900"
-                }`}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-zinc-500"><path d="M1.5 3.5a1 1 0 011-1h2.5l1 1.5h4a1 1 0 011 1v4.5a1 1 0 01-1 1h-7.5a1 1 0 01-1-1z" /></svg>
-                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
-                  {folder.title}
-                </span>
-                <span className="shrink-0 text-[10px] text-zinc-600">
-                  {folder.path.split("/")[0]}
-                </span>
-                <button
-                  onClick={() =>
-                    isLocked
-                      ? handleUnlock(folder.id)
-                      : handleLock(folder)
-                  }
-                  className={`shrink-0 px-1 text-sm transition-colors ${
-                    isLocked
-                      ? "text-amber-400 hover:text-amber-300"
-                      : "text-zinc-600 hover:text-zinc-400"
+          {folders
+            .filter((f) =>
+              folderFilter
+                ? f.title.toLowerCase().includes(folderFilter.toLowerCase()) ||
+                  f.path.toLowerCase().includes(folderFilter.toLowerCase())
+                : true,
+            )
+            .map((folder) => {
+              const isLocked = lockedIds.has(folder.id);
+              return (
+                <div
+                  key={folder.id}
+                  className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+                    isLocked ? "border-amber-800/50 bg-amber-950/10" : "border-zinc-800 bg-zinc-900"
                   }`}
-                  title={isLocked ? "Unlock folder" : "Lock folder"}
                 >
-                  {isLocked ? (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" /></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" /></svg>
-                )}
-                </button>
-              </div>
-            );
-          })}
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 13 13"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 text-zinc-500"
+                  >
+                    <path d="M1.5 3.5a1 1 0 011-1h2.5l1 1.5h4a1 1 0 011 1v4.5a1 1 0 01-1 1h-7.5a1 1 0 01-1-1z" />
+                  </svg>
+                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
+                    {folder.title}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-zinc-600">
+                    {folder.path.split("/")[0]}
+                  </span>
+                  <button
+                    onClick={() => (isLocked ? handleUnlock(folder.id) : handleLock(folder))}
+                    className={`shrink-0 px-1 text-sm transition-colors ${
+                      isLocked
+                        ? "text-amber-400 hover:text-amber-300"
+                        : "text-zinc-600 hover:text-zinc-400"
+                    }`}
+                    title={isLocked ? "Unlock folder" : "Lock folder"}
+                  >
+                    {isLocked ? (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="2.5" y="6" width="9" height="6.5" rx="1" />
+                        <path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="2.5" y="6" width="9" height="6.5" rx="1" />
+                        <path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
         </section>
       )}
     </div>
@@ -251,7 +312,10 @@ function useElapsedTimer(running: boolean) {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(0);
   useEffect(() => {
-    if (!running) { setElapsed(0); return; }
+    if (!running) {
+      setElapsed(0);
+      return;
+    }
     startRef.current = Date.now();
     setElapsed(0);
     const id = setInterval(
@@ -275,8 +339,16 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [undoAvailable, setUndoAvailable] = useState(false);
   const [granularity, setGranularity] = useState<GroupingGranularity>(3);
+  const [guidance, setGuidance] = useState("");
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const elapsed = useElapsedTimer(status === "loading" || status === "applying");
+
+  // Load guidance from settings
+  useEffect(() => {
+    sendMessage<void, import("@/shared/types").Settings>("get-settings").then((res) => {
+      if (res.success && res.data?.bookmarkGuidance) setGuidance(res.data.bookmarkGuidance);
+    });
+  }, []);
 
   // Persist preview for tab switching
   useEffect(() => {
@@ -300,7 +372,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
         setStatus("preview");
       }
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAnalyze() {
     setStatus("loading");
@@ -313,9 +385,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
       >("organize-bookmarks", { granularity }, setProgress);
       if (response.success && response.data) {
         setData(response.data);
-        setEnabledFolders(
-          new Set(response.data.result.folders.map((_, i) => i)),
-        );
+        setEnabledFolders(new Set(response.data.result.folders.map((_, i) => i)));
         setStatus("preview");
       } else {
         setError(response.error ?? "Failed to analyze bookmarks");
@@ -327,13 +397,22 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
     }
   }
 
+  function renameFolderSuggestion(index: number, name: string) {
+    if (!data) return;
+    setData({
+      ...data,
+      result: {
+        ...data.result,
+        folders: data.result.folders.map((f, i) => (i === index ? { ...f, name } : f)),
+      },
+    });
+  }
+
   async function handleApply() {
     if (!data) return;
     setStatus("applying");
     try {
-      const enabledFolderData = data.result.folders.filter((_, i) =>
-        enabledFolders.has(i),
-      );
+      const enabledFolderData = data.result.folders.filter((_, i) => enabledFolders.has(i));
 
       // Find the Bookmarks Bar as default parent
       const parentId = data.folders[0]?.id ?? "1";
@@ -381,9 +460,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
     }
   }
 
-  const bookmarkMap = new Map(
-    (data?.bookmarks ?? []).map((b) => [b.id, b]),
-  );
+  const bookmarkMap = new Map((data?.bookmarks ?? []).map((b) => [b.id, b]));
 
   return (
     <div className="space-y-4">
@@ -393,6 +470,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
             AI will analyze your bookmarks and suggest a new folder structure.
           </p>
           <GranularitySlider value={granularity} onChange={setGranularity} />
+          <GuidanceInput type="bookmarks" value={guidance} onChange={setGuidance} />
           <button
             onClick={handleAnalyze}
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
@@ -415,12 +493,10 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
             <span className="flex-1">
               {status === "applying"
                 ? "Applying changes..."
-                : progress?.message ?? "Analyzing bookmarks..."}
+                : (progress?.message ?? "Analyzing bookmarks...")}
             </span>
             {elapsed > 0 && (
-              <span className="shrink-0 text-xs text-zinc-600">
-                {formatElapsed(elapsed)}
-              </span>
+              <span className="shrink-0 text-xs text-zinc-600">{formatElapsed(elapsed)}</span>
             )}
           </div>
           {progress && progress.total > 1 && (
@@ -434,7 +510,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
                 />
               </div>
               <p className="text-[10px] text-zinc-600">
-                Batch {progress.current} of {progress.total}
+                Step {progress.current} of {progress.total}
               </p>
             </div>
           )}
@@ -449,10 +525,7 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
 
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <GranularitySlider
-                value={granularity}
-                onChange={setGranularity}
-              />
+              <GranularitySlider value={granularity} onChange={setGranularity} />
             </div>
             <button
               onClick={handleAnalyze}
@@ -464,58 +537,28 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
 
           {data.result.folders.length > 0 ? (
             <>
-              <h3 className="text-sm font-medium text-zinc-300">
-                Suggested Folders
-              </h3>
-              {data.result.folders.map((folder, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    enabledFolders.has(i)
-                      ? "border-zinc-700 bg-zinc-900"
-                      : "border-zinc-800/50 bg-zinc-900/30 opacity-50"
-                  }`}
-                >
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={enabledFolders.has(i)}
-                      onChange={() => {
-                        setEnabledFolders((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i);
-                          else next.add(i);
-                          return next;
-                        });
-                      }}
-                      className="h-3.5 w-3.5 accent-brand-400"
-                    />
-                    <span className="text-sm font-medium">{folder.name}</span>
-                    <span className="text-xs text-zinc-500">
-                      {folder.bookmarkIds.length} bookmark
-                      {folder.bookmarkIds.length !== 1 ? "s" : ""}
-                    </span>
-                  </label>
-                  <div className="mt-2 space-y-0.5 pl-6">
-                    {folder.bookmarkIds.slice(0, 5).map((bmId) => {
-                      const bm = bookmarkMap.get(bmId);
-                      return bm ? (
-                        <div
-                          key={bmId}
-                          className="truncate text-xs text-zinc-500"
-                        >
-                          {bm.title}
-                        </div>
-                      ) : null;
-                    })}
-                    {folder.bookmarkIds.length > 5 && (
-                      <div className="text-xs text-zinc-600">
-                        +{folder.bookmarkIds.length - 5} more
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <h3 className="text-sm font-medium text-zinc-300">Suggested Folders</h3>
+              {data.result.folders
+                .map((folder, i) => ({ folder, i }))
+                .sort((a, b) => a.folder.name.localeCompare(b.folder.name))
+                .map(({ folder, i }) => (
+                  <BookmarkFolderCard
+                    key={i}
+                    folder={folder}
+                    index={i}
+                    enabled={enabledFolders.has(i)}
+                    onToggle={() => {
+                      setEnabledFolders((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i);
+                        else next.add(i);
+                        return next;
+                      });
+                    }}
+                    onRename={(name) => renameFolderSuggestion(i, name)}
+                    bookmarkMap={bookmarkMap}
+                  />
+                ))}
 
               <div className="flex items-center gap-2 border-t border-zinc-800 pt-3">
                 <button
@@ -536,7 +579,17 @@ function OrganizeMode({ onBack }: { onBack: () => void }) {
           ) : (
             <div className="flex flex-col items-center py-6 text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-green-500"
+                >
                   <path d="M6 10l3 3 5-6" />
                 </svg>
               </div>
@@ -587,9 +640,10 @@ function LocateMode({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   async function loadBookmarks() {
-    const response = await sendMessage<void, { bookmarks: BookmarkInfo[]; folders: FolderInfo[]; result: BookmarkOrganizationResult }>(
-      "organize-bookmarks",
-    );
+    const response = await sendMessage<
+      void,
+      { bookmarks: BookmarkInfo[]; folders: FolderInfo[]; result: BookmarkOrganizationResult }
+    >("organize-bookmarks");
     if (response.success && response.data) {
       setBookmarks(response.data.bookmarks);
     }
@@ -659,9 +713,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
 
       {status === "pick" && (
         <>
-          <p className="text-sm text-zinc-500">
-            Select a bookmark to find the best folder for it.
-          </p>
+          <p className="text-sm text-zinc-500">Select a bookmark to find the best folder for it.</p>
           <input
             type="text"
             value={search}
@@ -676,14 +728,8 @@ function LocateMode({ onBack }: { onBack: () => void }) {
                 onClick={() => handleSelect(bm)}
                 className="w-full rounded-md border border-transparent px-2 py-1.5 text-left transition-colors hover:border-zinc-700 hover:bg-zinc-900"
               >
-                <div className="truncate text-xs font-medium text-zinc-300">
-                  {bm.title}
-                </div>
-                {bm.url && (
-                  <div className="truncate text-[10px] text-zinc-600">
-                    {bm.url}
-                  </div>
-                )}
+                <div className="truncate text-xs font-medium text-zinc-300">{bm.title}</div>
+                {bm.url && <div className="truncate text-[10px] text-zinc-600">{bm.url}</div>}
               </button>
             ))}
             {filtered.length > 50 && (
@@ -699,7 +745,17 @@ function LocateMode({ onBack }: { onBack: () => void }) {
             {bookmarks.length === 0 && (
               <div className="flex flex-col items-center py-6 text-center">
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-zinc-600"
+                  >
                     <path d="M5 3h10a1.5 1.5 0 011.5 1.5v13l-6.5-4-6.5 4V4.5A1.5 1.5 0 015 3z" />
                   </svg>
                 </div>
@@ -716,9 +772,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
       {status === "loading" && (
         <div className="space-y-2">
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-2">
-            <div className="text-xs font-medium text-zinc-300">
-              {selected?.title}
-            </div>
+            <div className="text-xs font-medium text-zinc-300">{selected?.title}</div>
           </div>
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <Spinner />
@@ -730,19 +784,13 @@ function LocateMode({ onBack }: { onBack: () => void }) {
       {status === "results" && selected && (
         <div className="space-y-3">
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-2">
-            <div className="text-xs font-medium text-zinc-300">
-              {selected.title}
-            </div>
+            <div className="text-xs font-medium text-zinc-300">{selected.title}</div>
             {selected.url && (
-              <div className="truncate text-[10px] text-zinc-600">
-                {selected.url}
-              </div>
+              <div className="truncate text-[10px] text-zinc-600">{selected.url}</div>
             )}
           </div>
 
-          <h3 className="text-sm font-medium text-zinc-300">
-            Suggested Folders
-          </h3>
+          <h3 className="text-sm font-medium text-zinc-300">Suggested Folders</h3>
           {suggestions.map((s, i) => (
             <button
               key={i}
@@ -750,9 +798,7 @@ function LocateMode({ onBack }: { onBack: () => void }) {
               className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-left transition-colors hover:border-brand-500"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-zinc-200">
-                  {s.folderPath}
-                </span>
+                <span className="text-sm font-medium text-zinc-200">{s.folderPath}</span>
                 <span className="shrink-0 rounded-full bg-brand-950 px-2 py-0.5 text-[10px] text-brand-400">
                   {Math.round(s.confidence * 100)}%
                 </span>
@@ -795,9 +841,7 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
     setStatus("loading");
     setError(null);
     try {
-      const response = await sendMessage<void, DuplicateData>(
-        "find-duplicate-bookmarks",
-      );
+      const response = await sendMessage<void, DuplicateData>("find-duplicate-bookmarks");
       if (response.success && response.data) {
         setData(response.data);
         // Pre-select all duplicates except the first in each group
@@ -861,13 +905,26 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
     });
   }
 
+  function toggleAllRemovals(selectAll: boolean) {
+    if (!data) return;
+    if (selectAll) {
+      const all = new Set<string>();
+      for (const group of data.duplicates) {
+        for (let i = 1; i < group.bookmarks.length; i++) {
+          all.add(group.bookmarks[i].id);
+        }
+      }
+      setRemovals(all);
+    } else {
+      setRemovals(new Set());
+    }
+  }
+
   return (
     <div className="space-y-4">
       {status === "idle" && (
         <>
-          <p className="text-sm text-zinc-500">
-            Scan your bookmarks for exact URL duplicates.
-          </p>
+          <p className="text-sm text-zinc-500">Scan your bookmarks for exact URL duplicates.</p>
           <button
             onClick={handleScan}
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-coal hover:bg-brand-400"
@@ -895,7 +952,17 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
           {data.duplicates.length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-green-500"
+                >
                   <path d="M6 10l3 3 5-6" />
                 </svg>
               </div>
@@ -906,23 +973,29 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
             </div>
           ) : (
             <>
-              <p className="text-xs text-zinc-500">
-                Found {data.duplicates.length} set
-                {data.duplicates.length > 1 ? "s" : ""} of duplicates.
-                First bookmark in each set is kept by default.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-500">
+                  Found {data.duplicates.length} set
+                  {data.duplicates.length > 1 ? "s" : ""} of duplicates.
+                </p>
+                {(() => {
+                  const allCount = data.duplicates.reduce((n, g) => n + g.bookmarks.length - 1, 0);
+                  return (
+                    <button
+                      onClick={() => toggleAllRemovals(removals.size < allCount)}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                    >
+                      {removals.size < allCount ? "Select all" : "Deselect all"}
+                    </button>
+                  );
+                })()}
+              </div>
 
               {data.duplicates.map((group, gi) => (
-                <div
-                  key={gi}
-                  className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3"
-                >
-                  <div className="mb-2 truncate text-xs text-zinc-500">
-                    {group.url}
-                  </div>
+                <div key={gi} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+                  <div className="mb-2 truncate text-xs text-zinc-500">{group.url}</div>
                   {group.bookmarks.map((bm, bi) => {
-                    const folderPath =
-                      bm.parentId ? data.folderPaths[bm.parentId] : "Unknown";
+                    const folderPath = bm.parentId ? data.folderPaths[bm.parentId] : "Unknown";
                     const isFirst = bi === 0;
 
                     return (
@@ -941,23 +1014,15 @@ function DuplicatesMode({ onBack }: { onBack: () => void }) {
                           />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs text-zinc-300">
-                            {bm.title}
-                          </div>
-                          <div className="truncate text-[10px] text-zinc-600">
-                            in {folderPath}
-                          </div>
+                          <div className="truncate text-xs text-zinc-300">{bm.title}</div>
+                          <div className="truncate text-[10px] text-zinc-600">in {folderPath}</div>
                         </div>
                         <span
                           className={`shrink-0 text-[10px] ${
                             isFirst ? "text-green-500" : "text-zinc-600"
                           }`}
                         >
-                          {isFirst
-                            ? "keep"
-                            : removals.has(bm.id)
-                              ? "remove"
-                              : "keep"}
+                          {isFirst ? "keep" : removals.has(bm.id) ? "remove" : "keep"}
                         </span>
                       </div>
                     );
@@ -1031,9 +1096,7 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
     setStatus("loading");
     setError(null);
     try {
-      const response = await sendMessage<void, { removed: number }>(
-        "cleanup-empty-folders",
-      );
+      const response = await sendMessage<void, { removed: number }>("cleanup-empty-folders");
       if (response.success && response.data) {
         setRemoved(response.data.removed);
         setStatus("done");
@@ -1058,8 +1121,8 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
       {status === "idle" && (
         <>
           <p className="text-sm text-zinc-500">
-            Scan for and remove empty bookmark folders. This runs in multiple
-            passes to catch nested empty folders.
+            Scan for and remove empty bookmark folders. This runs in multiple passes to catch nested
+            empty folders.
           </p>
           <button
             onClick={handleCleanup}
@@ -1096,10 +1159,110 @@ function CleanupMode({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Bookmark Folder Card ───────────────────────────────────────────
+
+function BookmarkFolderCard({
+  folder,
+  index,
+  enabled,
+  onToggle,
+  onRename,
+  bookmarkMap,
+}: {
+  folder: { name: string; bookmarkIds: string[] };
+  index: number;
+  enabled: boolean;
+  onToggle: () => void;
+  onRename: (name: string) => void;
+  bookmarkMap: Map<string, BookmarkInfo>;
+}) {
+  const [editingName, setEditingName] = useState(false);
+
+  return (
+    <div
+      className={`rounded-lg border p-3 transition-colors ${
+        enabled ? "border-zinc-700 bg-zinc-900" : "border-zinc-800/50 bg-zinc-900/30 opacity-50"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={onToggle}
+          className="h-3.5 w-3.5 accent-brand-400"
+        />
+        {editingName ? (
+          <input
+            type="text"
+            value={folder.name}
+            onChange={(e) => onRename(e.target.value)}
+            onBlur={() => setEditingName(false)}
+            onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
+            className="min-w-0 flex-1 rounded-md border border-brand-400/50 bg-zinc-800 px-2 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
+          />
+        ) : (
+          <button
+            onClick={() => setEditingName(true)}
+            className="group/name flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
+            title="Click to rename"
+          >
+            <span className="truncate">
+              {folder.name.includes("/") ? (
+                <>
+                  <span className="text-zinc-500">
+                    {folder.name.split("/").slice(0, -1).join(" / ")}
+                    {" / "}
+                  </span>
+                  {folder.name.split("/").pop()}
+                </>
+              ) : (
+                folder.name
+              )}
+            </span>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 text-zinc-500"
+            >
+              <path d="M5.5 1.5l3 3M1.5 8.5l.5-2L7 1.5l3 3-5 5-2 .5-.5-.5z" />
+            </svg>
+          </button>
+        )}
+        <span className="shrink-0 text-xs text-zinc-500">
+          {folder.bookmarkIds.length} bookmark
+          {folder.bookmarkIds.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="mt-2 space-y-0.5 pl-6">
+        {folder.bookmarkIds.slice(0, 5).map((bmId) => {
+          const bm = bookmarkMap.get(bmId);
+          return bm ? (
+            <div key={bmId} className="truncate text-xs text-zinc-500">
+              {bm.title}
+            </div>
+          ) : null;
+        })}
+        {folder.bookmarkIds.length > 5 && (
+          <div className="text-xs text-zinc-600">+{folder.bookmarkIds.length - 5} more</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Shared ─────────────────────────────────────────────────────────
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400" style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }} />
+    <div
+      className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400"
+      style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }}
+    />
   );
 }

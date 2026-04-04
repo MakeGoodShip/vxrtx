@@ -1,0 +1,22 @@
+{
+  "description": "Mixed personal browsing: shopping, media, social, research",
+  "input": [
+    { "id": 10, "title": "Amazon.com: Wireless Earbuds" },
+    { "id": 11, "title": "YouTube - Music Mix 2026" },
+    { "id": 12, "title": "Reddit - r/productivity" },
+    { "id": 13, "title": "Amazon.com: Phone Case" },
+    { "id": 14, "title": "Netflix - Stranger Things" },
+    { "id": 15, "title": "Twitter / X - Home" },
+    { "id": 16, "title": "Wikipedia: Cognitive Load Theory" }
+  ],
+  "validResponse": "{\"groups\":[{\"name\":\"Shopping\",\"color\":\"green\",\"tabIds\":[10,13]},{\"name\":\"Media\",\"color\":\"red\",\"tabIds\":[11,14]},{\"name\":\"Social\",\"color\":\"cyan\",\"tabIds\":[12,15]},{\"name\":\"Research\",\"color\":\"blue\",\"tabIds\":[16]}],\"stale\":[],\"duplicates\":[],\"reasoning\":\"Amazon tabs grouped as Shopping, streaming as Media, social platforms together, Wikipedia as Research.\"}",
+  "goldenLabels": {
+    "10": "Shopping",
+    "11": "Media",
+    "12": "Social",
+    "13": "Shopping",
+    "14": "Media",
+    "15": "Social",
+    "16": "Research"
+  }
+}

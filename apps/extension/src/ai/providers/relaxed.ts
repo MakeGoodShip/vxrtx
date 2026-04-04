@@ -1,22 +1,39 @@
-import type { AIProvider, TabOrganizationAIResult } from "../types";
 import type {
-  TabInfo,
+  AIModelProvider,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
-  AIModelProvider,
-  GroupingGranularity,
+  TabInfo,
 } from "@/shared/types";
 import {
+  parseBookmarkLocation,
+  parseBookmarkOrganization,
+  parseTabOrganization,
+  withRetry,
+} from "../parser";
+import {
+  bookmarksToRelaxedInput,
+  buildBookmarkLocationPrompt,
+  buildBookmarkOrganizePrompt,
+  buildBookmarkOrganizePromptParts,
+} from "../prompts/bookmark-grouping";
+import {
   buildTabGroupingPrompt,
+  buildTabGroupingPromptParts,
   tabsToRelaxedInput,
 } from "../prompts/tab-grouping";
 import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
-  bookmarksToRelaxedInput,
-} from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation } from "../parser";
+  type AIProvider,
+  aiMaxTokens,
+  aiTimeoutMs,
+  fetchWithTimeout,
+  type OrganizeBookmarksOptions,
+  type OrganizeTabsOptions,
+  type StatusCallback,
+  SYSTEM_MESSAGE,
+  selectClaudeModel,
+  type TabOrganizationAIResult,
+} from "../types";
 
 /**
  * Relaxed provider: same API calls as YOLO but sends minimal data.
@@ -30,21 +47,54 @@ export class RelaxedProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], granularity?: GroupingGranularity): Promise<TabOrganizationAIResult> {
+  async organizeTabs(
+    tabs: TabInfo[],
+    options?: OrganizeTabsOptions,
+  ): Promise<TabOrganizationAIResult> {
+    const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = tabsToRelaxedInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity });
-    const response = await this.complete(prompt);
-    return parseTabOrganization(response);
+    const promptOpts = { includeUrls: false, granularity, corrections, guidance };
+    if (this.modelProvider === "claude") {
+      const parts = buildTabGroupingPromptParts(input, promptOpts);
+      return withRetry(
+        (errorContext) =>
+          this.completeClaude(parts.cached, parts.dynamic, tabs.length, errorContext),
+        parseTabOrganization,
+        onStatus,
+      );
+    }
+    const prompt = buildTabGroupingPrompt(input, promptOpts);
+    return withRetry(
+      (errorContext) => this.completeOpenAI(prompt, tabs.length, errorContext),
+      parseTabOrganization,
+      onStatus,
+    );
   }
 
   async organizeBookmarks(
     bookmarks: BookmarkInfo[],
-    granularity?: GroupingGranularity,
+    options?: OrganizeBookmarksOptions,
   ): Promise<BookmarkOrganizationResult> {
+    const { granularity, guidance, onStatus } = options ?? {};
     const input = bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity });
-    const response = await this.complete(prompt);
-    const parsed = parseBookmarkOrganization(response);
+    const promptOpts = { includeUrls: false, granularity, guidance };
+    let parsed: Awaited<ReturnType<typeof parseBookmarkOrganization>>;
+    if (this.modelProvider === "claude") {
+      const parts = buildBookmarkOrganizePromptParts(input, promptOpts);
+      parsed = await withRetry(
+        (errorContext) =>
+          this.completeClaude(parts.cached, parts.dynamic, bookmarks.length, errorContext),
+        parseBookmarkOrganization,
+        onStatus,
+      );
+    } else {
+      const prompt = buildBookmarkOrganizePrompt(input, promptOpts);
+      parsed = await withRetry(
+        (errorContext) => this.completeOpenAI(prompt, bookmarks.length, errorContext),
+        parseBookmarkOrganization,
+        onStatus,
+      );
+    }
     return {
       folders: parsed.folders.map((f) => ({ ...f, parentId: undefined })),
       moves: [],
@@ -57,39 +107,65 @@ export class RelaxedProvider implements AIProvider {
   async suggestBookmarkLocation(
     bookmark: BookmarkInfo,
     folders: { id: string; path: string }[],
+    onStatus?: StatusCallback,
   ): Promise<LocationSuggestion[]> {
     const input = { id: bookmark.id, title: bookmark.title };
     const prompt = buildBookmarkLocationPrompt(input, folders, {
       includeUrls: false,
     });
-    const response = await this.complete(prompt);
-    return parseBookmarkLocation(response).suggestions;
+    const parsed = await withRetry(
+      (errorContext) =>
+        this.modelProvider === "claude"
+          ? this.completeClaude(prompt, "", folders.length, errorContext)
+          : this.completeOpenAI(prompt, folders.length, errorContext),
+      parseBookmarkLocation,
+      onStatus,
+    );
+    return parsed.suggestions;
   }
 
-  private async complete(prompt: string): Promise<string> {
-    if (this.modelProvider === "claude") {
-      return this.completeClaude(prompt);
-    }
-    return this.completeOpenAI(prompt);
-  }
-
-  private async completeClaude(prompt: string): Promise<string> {
+  private async completeClaude(
+    cachedContent: string,
+    dynamicContent: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     if (!this.claudeKey) throw new Error("Anthropic API key not configured");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.claudeKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
+    const userBlocks: { type: string; text: string; cache_control?: { type: string } }[] = [
+      { type: "text", text: cachedContent, cache_control: { type: "ephemeral" } },
+    ];
+    const dynamicText = errorContext ? `${dynamicContent}\n\n${errorContext}` : dynamicContent;
+    if (dynamicText) {
+      userBlocks.push({ type: "text", text: dynamicText });
+    }
+
+    const model = selectClaudeModel(itemCount);
+    const timeout = aiTimeoutMs(itemCount);
+    const totalChars = cachedContent.length + (dynamicText?.length ?? 0);
+    console.log(
+      `[vxrtx] Claude request: model=${model}, items=${itemCount}, prompt=${totalChars} chars, timeout=${Math.round(timeout / 1000)}s`,
+    );
+    const response = await fetchWithTimeout(
+      "https://api.anthropic.com/v1/messages",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.claudeKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: aiMaxTokens(itemCount),
+          temperature: 0.0,
+          system: SYSTEM_MESSAGE,
+          messages: [{ role: "user", content: userBlocks }],
+        }),
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+      timeout,
+    );
 
     if (!response.ok) {
       const err = await response.text();
@@ -97,36 +173,45 @@ export class RelaxedProvider implements AIProvider {
     }
 
     const data = await response.json();
-    const textBlock = data.content?.find(
-      (b: { type: string }) => b.type === "text",
-    );
+    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     if (!textBlock?.text) throw new Error("No text in Claude response");
     return textBlock.text;
   }
 
-  private async completeOpenAI(prompt: string): Promise<string> {
+  private async completeOpenAI(
+    prompt: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     if (!this.openaiKey) throw new Error("OpenAI API key not configured");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.openaiKey}`,
+    const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
+    const timeout = aiTimeoutMs(itemCount);
+    console.log(
+      `[vxrtx] OpenAI request: model=gpt-4o-mini, items=${itemCount}, prompt=${userContent.length} chars, timeout=${Math.round(timeout / 1000)}s`,
+    );
+
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: SYSTEM_MESSAGE },
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.0,
+          max_tokens: aiMaxTokens(itemCount),
+          response_format: { type: "json_object" },
+        }),
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a browser organization assistant. Always respond with valid JSON only.",
-          },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      }),
-    });
+      timeout,
+    );
 
     if (!response.ok) {
       const err = await response.text();

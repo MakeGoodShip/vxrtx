@@ -1,14 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { sendMessage, sendLongRunningMessage, type ProgressUpdate } from "@/shared/messaging";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { type ProgressUpdate, sendLongRunningMessage, sendMessage } from "@/shared/messaging";
 import type {
-  TabOrganizationResult,
-  TabGroupSuggestion,
-  TabGroupColor,
-  TabInfo,
-  LockedTabGroup,
   GroupingGranularity,
+  LockedTabGroup,
+  TabGroupColor,
+  TabGroupSuggestion,
+  TabInfo,
+  TabOrganizationResult,
 } from "@/shared/types";
 import { GranularitySlider } from "../components/GranularitySlider";
+import { GuidanceInput } from "../components/GuidanceInput";
 
 type Status = "idle" | "loading" | "preview" | "applying" | "done";
 
@@ -16,7 +17,10 @@ function useElapsedTimer(running: boolean) {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(0);
   useEffect(() => {
-    if (!running) { setElapsed(0); return; }
+    if (!running) {
+      setElapsed(0);
+      return;
+    }
     startRef.current = Date.now();
     setElapsed(0);
     const id = setInterval(
@@ -39,11 +43,12 @@ interface EditableGroup extends TabGroupSuggestion {
 
 interface PreviewState {
   groups: EditableGroup[];
+  allStale: number[];
   staleEnabled: Set<number>;
+  allDuplicates: number[][];
   duplicatesEnabled: Set<number>;
   tabs: Map<number, TabInfo>;
   reasoning?: string;
-  allDuplicates: number[][];
 }
 
 interface ChromeGroup {
@@ -74,15 +79,29 @@ export function TabOrganizer() {
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const elapsed = useElapsedTimer(status === "loading" || status === "applying");
 
+  // Guidance + pinned toggle
+  const [guidance, setGuidance] = useState("");
+  const [includePinned, setIncludePinned] = useState(false);
+
   // Lock state
   const [chromeGroups, setChromeGroups] = useState<ChromeGroup[]>([]);
   const [lockedIds, setLockedIds] = useState<Set<number>>(new Set());
   const [dormantLocks, setDormantLocks] = useState<LockedTabGroup[]>([]);
 
+  // Load guidance + pinned preference from settings on mount
+  useEffect(() => {
+    sendMessage<void, import("@/shared/types").Settings>("get-settings").then((res) => {
+      if (res.success && res.data) {
+        if (res.data.tabGuidance) setGuidance(res.data.tabGuidance);
+        if (res.data.includePinnedTabs) setIncludePinned(res.data.includePinnedTabs);
+      }
+    });
+  }, []);
+
   // Load current Chrome groups + locked state on mount and when returning to idle
   useEffect(() => {
     if (status === "idle") loadGroupsAndLocks();
-  }, [status]);
+  }, [status, loadGroupsAndLocks]);
 
   // Persist preview state so it survives side panel re-creation on tab switch
   useEffect(() => {
@@ -108,6 +127,7 @@ export function TabOrganizer() {
         setPreview({
           groups: saved.groups,
           reasoning: saved.reasoning,
+          allStale: saved.allStale ?? [],
           allDuplicates: saved.allDuplicates,
           staleEnabled: new Set(saved.staleEnabled),
           duplicatesEnabled: new Set(saved.duplicatesEnabled),
@@ -116,7 +136,7 @@ export function TabOrganizer() {
         setStatus("preview");
       }
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadGroupsAndLocks() {
     try {
@@ -129,10 +149,7 @@ export function TabOrganizer() {
       const tabCountByGroup = new Map<number, number>();
       for (const tab of tabs) {
         if (tab.groupId !== undefined && tab.groupId !== -1) {
-          tabCountByGroup.set(
-            tab.groupId,
-            (tabCountByGroup.get(tab.groupId) ?? 0) + 1,
-          );
+          tabCountByGroup.set(tab.groupId, (tabCountByGroup.get(tab.groupId) ?? 0) + 1);
         }
       }
 
@@ -151,9 +168,7 @@ export function TabOrganizer() {
         { locked: LockedTabGroup[]; dormant: LockedTabGroup[] }
       >("get-locked-tab-groups");
       if (lockRes.success && lockRes.data) {
-        setLockedIds(
-          new Set(lockRes.data.locked.map((g) => g.chromeGroupId)),
-        );
+        setLockedIds(new Set(lockRes.data.locked.map((g) => g.chromeGroupId)));
         setDormantLocks(lockRes.data.dormant);
       }
     } catch {
@@ -187,9 +202,7 @@ export function TabOrganizer() {
     await sendMessage("unlock-tab-group", {
       chromeGroupId: lock.chromeGroupId,
     });
-    setDormantLocks((prev) =>
-      prev.filter((l) => l.chromeGroupId !== lock.chromeGroupId),
-    );
+    setDormantLocks((prev) => prev.filter((l) => l.chromeGroupId !== lock.chromeGroupId));
   }
 
   async function handleOrganize() {
@@ -198,22 +211,21 @@ export function TabOrganizer() {
     setProgress(null);
     try {
       const response = await sendLongRunningMessage<
-        { granularity: GroupingGranularity },
+        { granularity: GroupingGranularity; includePinned: boolean },
         TabOrganizationResult
-      >("organize-tabs", { granularity }, setProgress);
+      >("organize-tabs", { granularity, includePinned }, setProgress);
       if (response.success && response.data) {
         const data = response.data;
         const tabMap = new Map(data.tabs.map((t) => [t.id, t]));
 
         setPreview({
           groups: data.groups.map((g) => ({ ...g, enabled: true })),
+          allStale: data.stale,
           staleEnabled: new Set(data.stale),
-          duplicatesEnabled: new Set(
-            data.duplicates.flatMap((set) => set.slice(1)),
-          ),
+          allDuplicates: data.duplicates,
+          duplicatesEnabled: new Set(data.duplicates.flatMap((set) => set.slice(1))),
           tabs: tabMap,
           reasoning: data.reasoning,
-          allDuplicates: data.duplicates,
         });
         setStatus("preview");
       } else {
@@ -237,9 +249,7 @@ export function TabOrganizer() {
           .map(({ enabled: _, ...g }) => g),
         stale: Array.from(preview.staleEnabled),
         duplicates: preview.allDuplicates
-          .map((set) =>
-            set.filter((id) => preview.duplicatesEnabled.has(id)),
-          )
+          .map((set) => set.filter((id) => preview.duplicatesEnabled.has(id)))
           .filter((set) => set.length > 0)
           .map((toClose) => [0, ...toClose]),
         reasoning: preview.reasoning,
@@ -303,32 +313,26 @@ export function TabOrganizer() {
     });
   }, []);
 
-  const updateGroupColor = useCallback(
-    (index: number, color: TabGroupColor) => {
-      setPreview((prev) => {
-        if (!prev) return prev;
-        const groups = [...prev.groups];
-        groups[index] = { ...groups[index], color };
-        return { ...prev, groups };
-      });
-    },
-    [],
-  );
+  const updateGroupColor = useCallback((index: number, color: TabGroupColor) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      const groups = [...prev.groups];
+      groups[index] = { ...groups[index], color };
+      return { ...prev, groups };
+    });
+  }, []);
 
-  const removeTabFromGroup = useCallback(
-    (groupIndex: number, tabId: number) => {
-      setPreview((prev) => {
-        if (!prev) return prev;
-        const groups = [...prev.groups];
-        groups[groupIndex] = {
-          ...groups[groupIndex],
-          tabIds: groups[groupIndex].tabIds.filter((id) => id !== tabId),
-        };
-        return { ...prev, groups };
-      });
-    },
-    [],
-  );
+  const removeTabFromGroup = useCallback((groupIndex: number, tabId: number) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      const groups = [...prev.groups];
+      groups[groupIndex] = {
+        ...groups[groupIndex],
+        tabIds: groups[groupIndex].tabIds.filter((id) => id !== tabId),
+      };
+      return { ...prev, groups };
+    });
+  }, []);
 
   const toggleStaleTab = useCallback((tabId: number) => {
     setPreview((prev) => {
@@ -356,12 +360,26 @@ export function TabOrganizer() {
     });
   }, []);
 
-  const enabledCount =
-    preview
-      ? preview.groups.filter((g) => g.enabled).length +
-        preview.staleEnabled.size +
-        preview.duplicatesEnabled.size
-      : 0;
+  const toggleAllStale = useCallback((selectAll: boolean) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      return { ...prev, staleEnabled: selectAll ? new Set(prev.allStale) : new Set() };
+    });
+  }, []);
+
+  const toggleAllDuplicates = useCallback((selectAll: boolean) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      const all = prev.allDuplicates.flatMap((set) => set.slice(1));
+      return { ...prev, duplicatesEnabled: selectAll ? new Set(all) : new Set() };
+    });
+  }, []);
+
+  const enabledCount = preview
+    ? preview.groups.filter((g) => g.enabled).length +
+      preview.staleEnabled.size +
+      preview.duplicatesEnabled.size
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -387,6 +405,52 @@ export function TabOrganizer() {
       {status === "idle" && !error && (
         <div className="space-y-3">
           <GranularitySlider value={granularity} onChange={setGranularity} />
+          <GuidanceInput type="tabs" value={guidance} onChange={setGuidance} />
+
+          {/* Pinned tabs toggle */}
+          <button
+            onClick={() => {
+              const next = !includePinned;
+              setIncludePinned(next);
+              sendMessage("save-settings", { includePinnedTabs: next });
+            }}
+            className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+              includePinned ? "border-brand-400/30 bg-brand-950/20" : "border-zinc-800 bg-zinc-900"
+            }`}
+          >
+            <div
+              className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
+                includePinned ? "bg-brand-500" : "bg-zinc-700"
+              }`}
+            >
+              <div
+                className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                  includePinned ? "translate-x-3.5" : "translate-x-0.5"
+                }`}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span
+                className={`text-xs font-medium ${includePinned ? "text-brand-400" : "text-zinc-400"}`}
+              >
+                Include pinned tabs
+              </span>
+            </div>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`shrink-0 ${includePinned ? "text-brand-400" : "text-zinc-600"}`}
+            >
+              <path d="M7 1L9 3L6.5 5.5L7.5 8L6 9.5L4.5 6.5L2 7L1 6L3.5 3.5L3 2.5L4.5 1L5.5 3L7 1Z" />
+            </svg>
+          </button>
+
           {chromeGroups.length > 0 ? (
             <p className="text-xs text-zinc-600">
               Locked groups are excluded from all organization.
@@ -394,7 +458,17 @@ export function TabOrganizer() {
           ) : (
             <div className="flex flex-col items-center py-6 text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-zinc-600"
+                >
                   <rect x="2" y="5" width="16" height="12" rx="2" />
                   <path d="M2 8h16" />
                   <path d="M7 5v3" />
@@ -414,9 +488,7 @@ export function TabOrganizer() {
           <h3 className="text-sm font-medium text-zinc-300">
             Tab Groups
             {lockedIds.size > 0 && (
-              <span className="ml-1 text-xs text-zinc-500">
-                ({lockedIds.size} locked)
-              </span>
+              <span className="ml-1 text-xs text-zinc-500">({lockedIds.size} locked)</span>
             )}
           </h3>
           {chromeGroups.map((group) => {
@@ -425,9 +497,7 @@ export function TabOrganizer() {
               <div
                 key={group.id}
                 className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
-                  isLocked
-                    ? "border-amber-800/50 bg-amber-950/10"
-                    : "border-zinc-800 bg-zinc-900"
+                  isLocked ? "border-amber-800/50 bg-amber-950/10" : "border-zinc-800 bg-zinc-900"
                 }`}
               >
                 <div
@@ -441,11 +511,7 @@ export function TabOrganizer() {
                   {group.tabCount} tab{group.tabCount !== 1 ? "s" : ""}
                 </span>
                 <button
-                  onClick={() =>
-                    isLocked
-                      ? handleUnlock(group.id)
-                      : handleLock(group.id)
-                  }
+                  onClick={() => (isLocked ? handleUnlock(group.id) : handleLock(group.id))}
                   className={`shrink-0 px-1 text-sm transition-colors ${
                     isLocked
                       ? "text-amber-400 hover:text-amber-300"
@@ -454,9 +520,33 @@ export function TabOrganizer() {
                   title={isLocked ? "Unlock group" : "Lock group"}
                 >
                   {isLocked ? (
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" /></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="2.5" y="6" width="9" height="6.5" rx="1" />
+                      <path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" />
+                    </svg>
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="9" height="6.5" rx="1" /><path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" /></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="2.5" y="6" width="9" height="6.5" rx="1" />
+                      <path d="M4.5 6V4.5a2.5 2.5 0 015 0v.5" />
+                    </svg>
                   )}
                 </button>
               </div>
@@ -466,9 +556,7 @@ export function TabOrganizer() {
           {/* Dormant locks */}
           {dormantLocks.length > 0 && (
             <div className="space-y-1.5 pt-1">
-              <p className="text-[10px] text-zinc-600">
-                Dormant locks (group no longer open):
-              </p>
+              <p className="text-[10px] text-zinc-600">Dormant locks (group no longer open):</p>
               {dormantLocks.map((lock) => (
                 <div
                   key={lock.chromeGroupId}
@@ -501,12 +589,10 @@ export function TabOrganizer() {
             <span className="flex-1">
               {status === "applying"
                 ? "Applying changes..."
-                : progress?.message ?? "Analyzing tabs..."}
+                : (progress?.message ?? "Analyzing tabs...")}
             </span>
             {elapsed > 0 && (
-              <span className="shrink-0 text-xs text-zinc-600">
-                {formatElapsed(elapsed)}
-              </span>
+              <span className="shrink-0 text-xs text-zinc-600">{formatElapsed(elapsed)}</span>
             )}
           </div>
           {progress && progress.total > 1 && (
@@ -520,7 +606,7 @@ export function TabOrganizer() {
                 />
               </div>
               <p className="text-[10px] text-zinc-600">
-                Batch {progress.current} of {progress.total}
+                Step {progress.current} of {progress.total}
               </p>
             </div>
           )}
@@ -529,16 +615,11 @@ export function TabOrganizer() {
 
       {status === "preview" && preview && (
         <div className="space-y-4">
-          {preview.reasoning && (
-            <p className="text-xs text-zinc-500">{preview.reasoning}</p>
-          )}
+          {preview.reasoning && <p className="text-xs text-zinc-500">{preview.reasoning}</p>}
 
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <GranularitySlider
-                value={granularity}
-                onChange={setGranularity}
-              />
+              <GranularitySlider value={granularity} onChange={setGranularity} />
             </div>
             <button
               onClick={handleOrganize}
@@ -549,26 +630,36 @@ export function TabOrganizer() {
           </div>
 
           {/* Nothing to do */}
-          {preview.groups.length === 0 && preview.staleEnabled.size === 0 && preview.allDuplicates.length === 0 && (
-            <div className="flex flex-col items-center py-6 text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
-                  <path d="M6 10l3 3 5-6" />
-                </svg>
+          {preview.groups.length === 0 &&
+            preview.staleEnabled.size === 0 &&
+            preview.allDuplicates.length === 0 && (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-green-800/50 bg-green-950/20">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-green-500"
+                  >
+                    <path d="M6 10l3 3 5-6" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-zinc-400">Tabs look good</p>
+                <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
+                  No grouping suggestions, stale tabs, or duplicates found.
+                </p>
               </div>
-              <p className="text-sm font-medium text-zinc-400">Tabs look good</p>
-              <p className="mt-1 max-w-[220px] text-[11px] text-zinc-600">
-                No grouping suggestions, stale tabs, or duplicates found.
-              </p>
-            </div>
-          )}
+            )}
 
           {/* Groups */}
           {preview.groups.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-300">
-                Suggested Groups
-              </h3>
+              <h3 className="text-sm font-medium text-zinc-300">Suggested Groups</h3>
               {preview.groups.map((group, gi) => (
                 <GroupCard
                   key={gi}
@@ -585,20 +676,30 @@ export function TabOrganizer() {
           )}
 
           {/* Stale tabs */}
-          {preview.staleEnabled.size > 0 && (
+          {preview.allStale.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-300">
-                Stale Tabs
-                <span className="ml-1 text-xs text-zinc-500">
-                  (close {preview.staleEnabled.size})
-                </span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-300">
+                  Stale Tabs
+                  <span className="ml-1 text-xs text-zinc-500">
+                    ({preview.staleEnabled.size}/{preview.allStale.length})
+                  </span>
+                </h3>
+                <button
+                  onClick={() =>
+                    toggleAllStale(preview.staleEnabled.size < preview.allStale.length)
+                  }
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                >
+                  {preview.staleEnabled.size < preview.allStale.length
+                    ? "Select all"
+                    : "Deselect all"}
+                </button>
+              </div>
               {Array.from(
                 new Set([
                   ...preview.staleEnabled,
-                  ...Array.from(preview.tabs.keys()).filter((id) =>
-                    preview.staleEnabled.has(id),
-                  ),
+                  ...Array.from(preview.tabs.keys()).filter((id) => preview.staleEnabled.has(id)),
                 ]),
               ).map((tabId) => {
                 const tab = preview.tabs.get(tabId);
@@ -619,34 +720,40 @@ export function TabOrganizer() {
           {/* Duplicates */}
           {preview.allDuplicates.length > 0 && (
             <section className="space-y-2">
-              <h3 className="text-sm font-medium text-zinc-300">
-                Duplicates
-                <span className="ml-1 text-xs text-zinc-500">
-                  ({preview.allDuplicates.length} set
-                  {preview.allDuplicates.length > 1 ? "s" : ""})
-                </span>
-              </h3>
-              {preview.allDuplicates.map((dupSet, di) => (
-                <div
-                  key={di}
-                  className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-2"
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-300">
+                  Duplicates
+                  <span className="ml-1 text-xs text-zinc-500">
+                    ({preview.allDuplicates.length} set{preview.allDuplicates.length > 1 ? "s" : ""}
+                    )
+                  </span>
+                </h3>
+                <button
+                  onClick={() =>
+                    toggleAllDuplicates(
+                      preview.duplicatesEnabled.size <
+                        preview.allDuplicates.flatMap((s) => s.slice(1)).length,
+                    )
+                  }
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300"
                 >
+                  {preview.duplicatesEnabled.size <
+                  preview.allDuplicates.flatMap((s) => s.slice(1)).length
+                    ? "Select all"
+                    : "Deselect all"}
+                </button>
+              </div>
+              {preview.allDuplicates.map((dupSet, di) => (
+                <div key={di} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-2">
                   {dupSet.map((tabId, ti) => {
                     const tab = preview.tabs.get(tabId);
                     if (!tab) return null;
                     if (ti === 0) {
                       return (
-                        <div
-                          key={tabId}
-                          className="flex items-center gap-2 px-2 py-1"
-                        >
+                        <div key={tabId} className="flex items-center gap-2 px-2 py-1">
                           <Favicon url={tab.favIconUrl} />
-                          <span className="truncate text-xs text-zinc-300">
-                            {tab.title}
-                          </span>
-                          <span className="shrink-0 text-[10px] text-green-500">
-                            keep
-                          </span>
+                          <span className="truncate text-xs text-zinc-300">{tab.title}</span>
+                          <span className="shrink-0 text-[10px] text-green-500">keep</span>
                         </div>
                       );
                     }
@@ -717,7 +824,10 @@ export function TabOrganizer() {
 
 function Spinner() {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400" style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }} />
+    <div
+      className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-700 border-t-brand-400"
+      style={{ filter: "drop-shadow(0 0 4px var(--color-brand-400))" }}
+    />
   );
 }
 
@@ -757,9 +867,7 @@ function TabCheckbox({
         className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-brand-400 accent-brand-400"
       />
       <Favicon url={tab.favIconUrl} />
-      <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">
-        {tab.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-xs text-zinc-300">{tab.title}</span>
       <span className="shrink-0 text-[10px] text-zinc-600">{label}</span>
     </label>
   );
@@ -805,8 +913,7 @@ function GroupCard({
         <button
           onClick={() => {
             const currentIdx = GROUP_COLORS.indexOf(group.color);
-            const nextColor =
-              GROUP_COLORS[(currentIdx + 1) % GROUP_COLORS.length];
+            const nextColor = GROUP_COLORS[(currentIdx + 1) % GROUP_COLORS.length];
             onChangeColor(index, nextColor);
           }}
           className="h-3.5 w-3.5 shrink-0 rounded-full border border-zinc-600 transition-transform hover:scale-125"
@@ -822,16 +929,28 @@ function GroupCard({
             onChange={(e) => onRename(index, e.target.value)}
             onBlur={() => setEditingName(false)}
             onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
-            autoFocus
-            className="min-w-0 flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
+            className="min-w-0 flex-1 rounded-md border border-brand-400/50 bg-zinc-800 px-2 py-0.5 text-sm text-zinc-100 outline-none focus:border-brand-400"
           />
         ) : (
           <button
             onClick={() => setEditingName(true)}
-            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
+            className="group/name flex min-w-0 flex-1 items-center gap-1 truncate text-left text-sm font-medium text-zinc-100 hover:text-brand-400"
             title="Click to rename"
           >
-            {group.name}
+            <span className="truncate">{group.name}</span>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 text-zinc-500"
+            >
+              <path d="M5.5 1.5l3 3M1.5 8.5l.5-2L7 1.5l3 3-5 5-2 .5-.5-.5z" />
+            </svg>
           </button>
         )}
 
@@ -843,7 +962,19 @@ function GroupCard({
           onClick={() => setExpanded(!expanded)}
           className="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expanded ? "rotate-180" : ""}`}><path d="M2 3.5l3 3 3-3" /></svg>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M2 3.5l3 3 3-3" />
+          </svg>
         </button>
       </div>
 
@@ -858,9 +989,7 @@ function GroupCard({
                 className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-zinc-800/50"
               >
                 <Favicon url={tab.favIconUrl} />
-                <span className="min-w-0 flex-1 truncate text-xs text-zinc-400">
-                  {tab.title}
-                </span>
+                <span className="min-w-0 flex-1 truncate text-xs text-zinc-400">{tab.title}</span>
                 <button
                   onClick={() => onRemoveTab(index, tabId)}
                   className="shrink-0 text-xs text-zinc-600 hover:text-[#f433ab]"

@@ -2,6 +2,8 @@ export type AITier = "secure" | "relaxed" | "yolo";
 
 export type AIModelProvider = "claude" | "openai" | "openrouter";
 
+export type LocalAIProvider = "rule-based" | "ollama" | "chrome-ai";
+
 export interface Settings {
   aiTier: AITier;
   aiModelProvider: AIModelProvider;
@@ -10,6 +12,18 @@ export interface Settings {
   openrouterApiKey: string;
   openrouterModel: string;
   staleDaysThreshold: number;
+  /** Local AI provider for secure tier */
+  localAIProvider: LocalAIProvider;
+  /** Ollama server URL (default: http://localhost:11434) */
+  ollamaUrl: string;
+  /** Ollama model name */
+  ollamaModel: string;
+  /** Whether to include pinned tabs in AI organization */
+  includePinnedTabs: boolean;
+  /** Custom guidance for tab organization (injected into prompt) */
+  tabGuidance: string;
+  /** Custom guidance for bookmark organization (injected into prompt) */
+  bookmarkGuidance: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,6 +34,12 @@ export const DEFAULT_SETTINGS: Settings = {
   openrouterApiKey: "",
   openrouterModel: "anthropic/claude-sonnet-4",
   staleDaysThreshold: 7,
+  localAIProvider: "rule-based",
+  ollamaUrl: "http://localhost:11434",
+  ollamaModel: "llama3.2",
+  includePinnedTabs: false,
+  tabGuidance: "",
+  bookmarkGuidance: "",
 };
 
 export type GroupingGranularity = 1 | 2 | 3 | 4 | 5;
@@ -49,6 +69,7 @@ export interface TabInfo {
   url: string;
   favIconUrl?: string;
   lastAccessed?: number;
+  pinned: boolean;
   groupId: number;
   windowId: number;
 }
@@ -71,6 +92,12 @@ export interface TabSnapshot {
   id: number;
   groupId: number;
   windowId: number;
+}
+
+export interface TabGroupSnapshot {
+  groupId: number;
+  title: string;
+  color: TabGroupColor;
 }
 
 export interface LockedTabGroup {
@@ -135,6 +162,49 @@ export interface BookmarkDuplicateGroup {
   bookmarks: BookmarkInfo[];
 }
 
+// ─── Correction Signals ─────────────────────────────────────────────
+
+export type SignalSource = "correction" | "acceptance";
+
+export interface CorrectionSignal {
+  /** Domain the correction applies to (e.g., "github.com") */
+  domain: string;
+  /** Group name the user prefers for this domain */
+  preferredGroup?: string;
+  /** Group name the user rejected for this domain */
+  rejectedGroup?: string;
+  /** Number of times this signal has been recorded */
+  count: number;
+  /** Timestamp of the most recent occurrence */
+  lastSeen: number;
+  /** Whether this came from an explicit edit or implicit acceptance. Defaults to "correction" for backward compat. */
+  source?: SignalSource;
+}
+
+// ─── Experiment Logs ────────────────────────────────────────────────
+
+export interface ExperimentLog {
+  /** Unique ID for correlating organize→apply pairs */
+  id: string;
+  timestamp: number;
+  /** Prompt variant identifier (e.g., "default", "v2-fewshot") */
+  variant: string;
+  /** LLM model used */
+  model: string;
+  /** Number of items sent to the AI */
+  itemCount: number;
+  /** AI response latency in milliseconds */
+  latencyMs: number;
+  /** Number of groups the AI suggested */
+  groupCount: number;
+  /** Number of user edits before applying (0 = accepted as-is). Set at apply time. */
+  editCount?: number;
+  /** Whether the user undid the changes after applying */
+  undone?: boolean;
+}
+
+// ─── Snapshots ──────────────────────────────────────────────────────
+
 export type SnapshotSource = "auto" | "manual";
 export type SnapshotType = "tabs" | "bookmarks" | "both";
 
@@ -147,5 +217,7 @@ export interface Snapshot {
   tabCount: number;
   bookmarkCount: number;
   tabs: TabSnapshot[];
+  /** Group metadata for restoring names/colors. Optional for backward compat with old snapshots. */
+  tabGroups?: TabGroupSnapshot[];
   bookmarks: BookmarkSnapshot[];
 }

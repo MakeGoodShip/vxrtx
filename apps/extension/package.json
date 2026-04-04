@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/"
+    "lint": "biome check src/",
+    "typecheck": "tsc --noEmit",
+    "package:zip": "[ -d dist ] && [ \"$(ls -A dist)\" ] && rm -f vxrtx-extension-*.zip && cd dist && zip -r ../vxrtx-extension-$npm_package_version.zip . || { echo '::error::dist/ is missing or empty — run build first'; exit 1; }"
   },
   "dependencies": {
     "react": "^19.2.4",
@@ -24,7 +26,6 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
-    "eslint": "^10.1.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",

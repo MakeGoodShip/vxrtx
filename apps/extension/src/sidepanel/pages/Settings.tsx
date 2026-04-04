@@ -3,6 +3,7 @@ import { sendMessage } from "@/shared/messaging";
 import type {
   AITier,
   AIModelProvider,
+  LocalAIProvider,
   Settings as SettingsType,
 } from "@/shared/types";
 import { DEFAULT_SETTINGS } from "@/shared/types";
@@ -121,11 +122,84 @@ export function Settings() {
         </p>
       </section>
 
-      {/* Secure mode note */}
+      {/* Secure mode: local AI options */}
       {!showCloudSettings && (
-        <p className="text-[11px] text-zinc-600">
-          All processing runs locally. Switch to Relaxed or YOLO for cloud AI options.
-        </p>
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium text-zinc-300">Local AI Engine</h3>
+          <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
+            {([
+              { id: "rule-based" as LocalAIProvider, label: "Rules" },
+              { id: "ollama" as LocalAIProvider, label: "Ollama" },
+              { id: "chrome-ai" as LocalAIProvider, label: "Chrome AI" },
+            ]).map((opt) => {
+              const isActive = settings.localAIProvider === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => save({ localAIProvider: opt.id })}
+                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                    isActive
+                      ? "border border-brand-400 bg-brand-950/30 text-brand-400"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-zinc-600">
+            {settings.localAIProvider === "rule-based" && "Fast domain-based grouping. No AI model needed."}
+            {settings.localAIProvider === "ollama" && "Connect to a local Ollama instance. Install from ollama.com."}
+            {settings.localAIProvider === "chrome-ai" && "Uses Chrome's built-in Gemini Nano. Requires Chrome 138+."}
+          </p>
+
+          {/* Ollama settings */}
+          {settings.localAIProvider === "ollama" && (
+            <div className="space-y-2">
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">Server URL</label>
+                <input
+                  type="text"
+                  value={settings.ollamaUrl}
+                  onChange={(e) => save({ ollamaUrl: e.target.value })}
+                  placeholder="http://localhost:11434"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-zinc-500">Model</label>
+                <div className="space-y-1.5">
+                  {[
+                    { id: "llama3.2", label: "Llama 3.2 (recommended)" },
+                    { id: "mistral", label: "Mistral" },
+                    { id: "gemma2", label: "Gemma 2" },
+                    { id: "phi3", label: "Phi-3" },
+                  ].map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => save({ ollamaModel: model.id })}
+                      className={`w-full rounded-md border px-3 py-1.5 text-left text-xs transition-colors ${
+                        settings.ollamaModel === model.id
+                          ? "border-brand-400 bg-brand-950/30 text-brand-400"
+                          : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700"
+                      }`}
+                    >
+                      {model.label}
+                    </button>
+                  ))}
+                  <input
+                    type="text"
+                    value={settings.ollamaModel}
+                    onChange={(e) => save({ ollamaModel: e.target.value })}
+                    placeholder="Custom model name..."
+                    className="w-full rounded-lg border border-dashed border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Model Provider */}

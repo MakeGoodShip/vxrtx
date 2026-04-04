@@ -2,6 +2,8 @@ export type AITier = "secure" | "relaxed" | "yolo";
 
 export type AIModelProvider = "claude" | "openai" | "openrouter";
 
+export type LocalAIProvider = "rule-based" | "ollama" | "chrome-ai";
+
 export interface Settings {
   aiTier: AITier;
   aiModelProvider: AIModelProvider;
@@ -10,6 +12,12 @@ export interface Settings {
   openrouterApiKey: string;
   openrouterModel: string;
   staleDaysThreshold: number;
+  /** Local AI provider for secure tier */
+  localAIProvider: LocalAIProvider;
+  /** Ollama server URL (default: http://localhost:11434) */
+  ollamaUrl: string;
+  /** Ollama model name */
+  ollamaModel: string;
   /** Whether to include pinned tabs in AI organization */
   includePinnedTabs: boolean;
   /** Custom guidance for tab organization (injected into prompt) */
@@ -26,6 +34,9 @@ export const DEFAULT_SETTINGS: Settings = {
   openrouterApiKey: "",
   openrouterModel: "anthropic/claude-sonnet-4",
   staleDaysThreshold: 7,
+  localAIProvider: "rule-based",
+  ollamaUrl: "http://localhost:11434",
+  ollamaModel: "llama3.2",
   includePinnedTabs: false,
   tabGuidance: "",
   bookmarkGuidance: "",

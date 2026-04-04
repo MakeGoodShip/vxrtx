@@ -281,13 +281,15 @@ async function handleOrganizeTabs(
       duplicates: [],
       reasoning: "No tabs to organize — all tabs are pinned or in locked groups.",
     };
-  } else if (settings.aiTier === "secure") {
+  } else if (settings.aiTier === "secure" && settings.localAIProvider === "rule-based") {
     result = ruleBasedOrganize(tabs, settings.staleDaysThreshold, g);
   } else {
     try {
-      const modelLabel = settings.aiModelProvider === "openrouter"
-        ? `OpenRouter (${settings.openrouterModel})`
-        : settings.aiModelProvider;
+      const modelLabel = settings.aiTier === "secure"
+        ? settings.localAIProvider === "ollama" ? `Ollama (${settings.ollamaModel})` : "Chrome AI"
+        : settings.aiModelProvider === "openrouter"
+          ? `OpenRouter (${settings.openrouterModel})`
+          : settings.aiModelProvider;
       sendProgress?.(2, 4, `Sending ${tabs.length} tabs to ${modelLabel}...`);
       const provider = await getAIProvider();
       const corrections = await getCorrections();
@@ -707,7 +709,7 @@ async function handleOrganizeBookmarks(
 
   sendProgress?.(1, 4, `Preparing ${bookmarks.length} bookmarks...`);
 
-  if (settings.aiTier === "secure") {
+  if (settings.aiTier === "secure" && settings.localAIProvider === "rule-based") {
     const ruleResult = ruleBasedBookmarkOrganize(bookmarks, g);
     return {
       success: true,

@@ -1,0 +1,39 @@
+# Release Please — analyzes conventional commits on main, creates/updates a release PR
+# with version bumps and changelog, then enables auto-merge so CI gates are the only barrier.
+
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Run Release Please
+        id: release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Enable auto-merge so the release PR merges automatically once CI passes.
+      # GR-5: no error suppression — if auto-merge can't be enabled, this step fails the workflow.
+      - name: Enable auto-merge for release PR
+        id: auto-merge
+        if: ${{ steps.release-please.outputs.pr }}
+        run: gh pr merge --auto --squash "$PR_NUMBER"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ fromJSON(steps.release-please.outputs.pr).number }}

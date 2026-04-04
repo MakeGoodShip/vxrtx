@@ -1,0 +1,52 @@
+# CI quality gates — runs lint, typecheck, test, and build on every PR to main.
+# The workflow name "CI" is used as a required status check in branch protection.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        id: setup-pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        id: install-deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint
+        id: lint
+        run: pnpm lint
+
+      - name: Run typecheck
+        id: typecheck
+        run: pnpm typecheck
+
+      - name: Run tests
+        id: test
+        run: pnpm test
+
+      - name: Run build
+        id: build
+        run: pnpm build

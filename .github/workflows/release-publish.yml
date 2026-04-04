@@ -1,0 +1,126 @@
+# Release Publish — triggers after Release Please completes, rebuilds from clean state,
+# packages the extension zip, and uploads the artifact to the GitHub Release created by Release Please.
+#
+# Guardrails enforced:
+#   GR-1: Only proceeds if triggering workflow succeeded
+#   GR-2: Checks out ref:main explicitly (not default workflow_run context)
+#   GR-3: Early-exit if no release was created (idempotent Release Please re-run)
+#   GR-4: Explicit minimal permissions
+
+name: Release Publish
+
+on:
+  workflow_run:
+    workflows: ["Release Please"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+      tag_name: ${{ steps.release-please.outputs['apps/extension--tag_name'] }}
+      version: ${{ steps.release-please.outputs['apps/extension--version'] }}
+    # GR-1: only run if the triggering workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      # GR-2: checkout ref:main explicitly — workflow_run default context is the PR head, not the merge commit
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      # Re-run Release Please (idempotent) to access component-keyed outputs.
+      # workflow_run cannot access the triggering workflow's step outputs.
+      - name: Run Release Please
+        id: release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # GR-3: skip all remaining steps if no release was created
+      - name: Set up pnpm
+        id: setup-pnpm
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        id: setup-node
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        id: install-deps
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Run build
+        id: build
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        run: pnpm --filter @vxrtx/extension build
+
+      - name: Validate version alignment
+        id: validate-versions
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        run: |
+          node -e "
+            const pkg = require('./apps/extension/package.json');
+            const manifest = require('./apps/extension/public/manifest.json');
+            if (pkg.version !== manifest.version) {
+              console.log('::error::Version mismatch: package.json=' + pkg.version + ' manifest.json=' + manifest.version);
+              process.exit(1);
+            }
+            console.log('Versions aligned: ' + pkg.version);
+          "
+
+      - name: Package extension zip
+        id: package-zip
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        run: pnpm --filter @vxrtx/extension package:zip
+
+      # Release Please already creates the GitHub Release with changelog notes.
+      # We just upload the zip artifact to the existing release.
+      - name: Upload release artifact
+        id: upload-artifact
+        if: ${{ steps.release-please.outputs['apps/extension--release_created'] }}
+        run: gh release upload "$TAG_NAME" apps/extension/vxrtx-extension-*.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.release-please.outputs['apps/extension--tag_name'] }}
+
+  # Phase 2: Chrome Web Store draft upload.
+  # Runs as a separate job so CWS failures don't affect the GitHub Release.
+  # Skipped entirely until CWS_EXTENSION_ID is configured as a repository variable.
+  cws-upload:
+    name: Upload to Chrome Web Store
+    runs-on: ubuntu-latest
+    needs: publish
+    if: ${{ needs.publish.outputs.release_created == 'true' && vars.CWS_EXTENSION_ID != '' }}
+
+    steps:
+      - name: Download release artifact
+        id: download-artifact
+        run: gh release download "$TAG_NAME" --pattern "vxrtx-extension-*.zip" --dir .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.publish.outputs.tag_name }}
+
+      - name: Upload draft to Chrome Web Store
+        id: cws-upload
+        run: npx chrome-webstore-upload-cli@3.5.0 upload --source vxrtx-extension-*.zip --auto-publish false
+        env:
+          EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}

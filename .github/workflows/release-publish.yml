@@ -1,8 +1,9 @@
 # Release Publish — triggers when Release Please creates a GitHub Release,
 # rebuilds from clean state, packages the extension zip, and uploads to the release.
+# Also supports manual dispatch for smoke testing and re-runs.
 #
 # Guardrails enforced:
-#   GR-1: Only runs on published releases with extension tag prefix
+#   GR-1: Only runs for extension release tags
 #   GR-2: Checks out the release tag for reproducible builds
 #   GR-3: Validates version alignment between package.json and manifest.json
 #   GR-4: Explicit minimal permissions
@@ -12,6 +13,11 @@ name: Release Publish
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to publish (e.g. extension-v0.2.0)"
+        required: true
 
 permissions:
   contents: write
@@ -20,8 +26,10 @@ jobs:
   publish:
     name: Build and Publish Release
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
     # GR-1: only run for extension releases
-    if: startsWith(github.event.release.tag_name, 'extension-v')
+    if: startsWith(github.event.release.tag_name || inputs.tag_name, 'extension-v')
 
     steps:
       # GR-2: checkout the release tag for reproducible builds
@@ -29,7 +37,7 @@ jobs:
         id: checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         id: setup-pnpm
@@ -70,10 +78,9 @@ jobs:
 
       - name: Upload release artifact
         id: upload-artifact
-        run: gh release upload "$TAG_NAME" apps/extension/vxrtx-extension-*.zip --clobber
+        run: gh release upload "$RELEASE_TAG" apps/extension/vxrtx-extension-*.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ github.event.release.tag_name }}
 
   # Phase 2: Chrome Web Store draft upload.
   # Runs as a separate job so CWS failures don't affect the GitHub Release.
@@ -82,16 +89,17 @@ jobs:
     name: Upload to Chrome Web Store
     runs-on: ubuntu-latest
     needs: publish
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
     if: vars.CWS_EXTENSION_ID != ''
 
     steps:
       - name: Download release artifact
         id: download-artifact
-        run: gh release download "$TAG_NAME" --pattern "vxrtx-extension-*.zip" --dir .
+        run: gh release download "$RELEASE_TAG" --pattern "vxrtx-extension-*.zip" --dir .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ github.event.release.tag_name }}
 
       - name: Upload draft to Chrome Web Store
         id: cws-upload

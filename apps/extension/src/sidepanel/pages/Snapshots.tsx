@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { sendMessage } from "@/shared/messaging";
 import type { Snapshot, SnapshotType } from "@/shared/types";
 
@@ -57,10 +57,10 @@ export function Snapshots() {
   async function handleCreate() {
     if (!newLabel.trim()) return;
     setSaving(true);
-    const response = await sendMessage<
-      { label: string; type: SnapshotType },
-      void
-    >("create-snapshot", { label: newLabel.trim(), type: newType });
+    const response = await sendMessage<{ label: string; type: SnapshotType }, void>(
+      "create-snapshot",
+      { label: newLabel.trim(), type: newType },
+    );
     setSaving(false);
     if (response.success) {
       setCreating(false);
@@ -167,10 +167,10 @@ export function Snapshots() {
         }
       }
 
-      const response = await sendMessage<
-        { snapshots: Snapshot[] },
-        { imported: number }
-      >("import-snapshots", { snapshots: incoming });
+      const response = await sendMessage<{ snapshots: Snapshot[] }, { imported: number }>(
+        "import-snapshots",
+        { snapshots: incoming },
+      );
 
       if (response.success && response.data) {
         setMessage({
@@ -252,7 +252,6 @@ export function Snapshots() {
             onChange={(e) => setNewLabel(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-brand-400 focus:outline-none"
-            autoFocus
           />
           <div className="flex items-center gap-1">
             <span className="mr-2 text-xs text-zinc-500">Include:</span>
@@ -283,7 +282,17 @@ export function Snapshots() {
       {snapshots.length === 0 && !creating && (
         <div className="flex flex-col items-center py-8 text-center">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-zinc-600"
+            >
               <rect x="3" y="3" width="14" height="14" rx="2" />
               <circle cx="10" cy="10" r="3.5" />
               <circle cx="10" cy="10" r="1" fill="currentColor" stroke="none" />
@@ -302,21 +311,14 @@ export function Snapshots() {
           const isRestoring = restoring === snap.id;
 
           return (
-            <div
-              key={snap.id}
-              className="rounded-lg border border-zinc-800 bg-zinc-900"
-            >
+            <div key={snap.id} className="rounded-lg border border-zinc-800 bg-zinc-900">
               <button
-                onClick={() =>
-                  setExpandedId(isExpanded ? null : snap.id)
-                }
+                onClick={() => setExpandedId(isExpanded ? null : snap.id)}
                 className="flex w-full items-center gap-2 p-3 text-left"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium text-zinc-200">
-                      {snap.label}
-                    </span>
+                    <span className="truncate text-sm font-medium text-zinc-200">{snap.label}</span>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${TYPE_COLORS[snap.type]}`}
                     >
@@ -326,26 +328,31 @@ export function Snapshots() {
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
                     <span>{timeAgo(snap.timestamp)}</span>
                     <span>·</span>
-                    <span
-                      className={
-                        snap.source === "manual"
-                          ? "text-brand-400"
-                          : ""
-                      }
-                    >
+                    <span className={snap.source === "manual" ? "text-brand-400" : ""}>
                       {snap.source}
                     </span>
                     <span>·</span>
                     <span>
-                      {snap.tabCount > 0 &&
-                        `${snap.tabCount} tab${snap.tabCount !== 1 ? "s" : ""}`}
+                      {snap.tabCount > 0 && `${snap.tabCount} tab${snap.tabCount !== 1 ? "s" : ""}`}
                       {snap.tabCount > 0 && snap.bookmarkCount > 0 && ", "}
                       {snap.bookmarkCount > 0 &&
                         `${snap.bookmarkCount} bookmark${snap.bookmarkCount !== 1 ? "s" : ""}`}
                     </span>
                   </div>
                 </div>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-zinc-600 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}><path d="M3.5 2l3 3-3 3" /></svg>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`shrink-0 text-zinc-600 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+                >
+                  <path d="M3.5 2l3 3-3 3" />
+                </svg>
               </button>
 
               {isExpanded && (
@@ -361,7 +368,6 @@ export function Snapshots() {
                           if (e.key === "Escape") setRenamingId(null);
                         }}
                         className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:border-brand-400 focus:outline-none"
-                        autoFocus
                       />
                       <button
                         onClick={() => handleRename(snap.id)}

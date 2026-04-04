@@ -1,26 +1,41 @@
-import { SYSTEM_MESSAGE, type AIProvider, type TabOrganizationAIResult, type OrganizeTabsOptions, type OrganizeBookmarksOptions, type StatusCallback } from "../types";
 import type {
-  TabInfo,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
+  TabInfo,
 } from "@/shared/types";
 import {
-  buildTabGroupingPrompt,
-  tabsToRelaxedInput,
-} from "../prompts/tab-grouping";
+  parseBookmarkLocation,
+  parseBookmarkOrganization,
+  parseTabOrganization,
+  withRetry,
+} from "../parser";
 import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
   bookmarksToRelaxedInput,
+  buildBookmarkLocationPrompt,
+  buildBookmarkOrganizePrompt,
 } from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation, withRetry } from "../parser";
+import { buildTabGroupingPrompt, tabsToRelaxedInput } from "../prompts/tab-grouping";
+import {
+  type AIProvider,
+  type OrganizeBookmarksOptions,
+  type OrganizeTabsOptions,
+  type StatusCallback,
+  SYSTEM_MESSAGE,
+  type TabOrganizationAIResult,
+} from "../types";
 
 // Chrome's LanguageModel API types (not in TS lib yet)
-declare const LanguageModel: {
-  availability(): Promise<"available" | "downloadable" | "downloading" | "unavailable">;
-  create(options?: { systemPrompt?: string; temperature?: number; topK?: number }): Promise<ChromeAISession>;
-} | undefined;
+declare const LanguageModel:
+  | {
+      availability(): Promise<"available" | "downloadable" | "downloading" | "unavailable">;
+      create(options?: {
+        systemPrompt?: string;
+        temperature?: number;
+        topK?: number;
+      }): Promise<ChromeAISession>;
+    }
+  | undefined;
 
 interface ChromeAISession {
   prompt(text: string): Promise<string>;
@@ -46,10 +61,18 @@ export async function isChromeAIAvailable(): Promise<boolean> {
  * Model quality is lower than cloud APIs but works offline.
  */
 export class ChromeAIProvider implements AIProvider {
-  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+  async organizeTabs(
+    tabs: TabInfo[],
+    options?: OrganizeTabsOptions,
+  ): Promise<TabOrganizationAIResult> {
     const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = tabsToRelaxedInput(tabs);
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity, corrections, guidance });
+    const prompt = buildTabGroupingPrompt(input, {
+      includeUrls: false,
+      granularity,
+      corrections,
+      guidance,
+    });
     return withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseTabOrganization,
@@ -63,7 +86,11 @@ export class ChromeAIProvider implements AIProvider {
   ): Promise<BookmarkOrganizationResult> {
     const { granularity, guidance, onStatus } = options ?? {};
     const input = bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity, guidance });
+    const prompt = buildBookmarkOrganizePrompt(input, {
+      includeUrls: false,
+      granularity,
+      guidance,
+    });
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, errorContext),
       parseBookmarkOrganization,
@@ -95,7 +122,9 @@ export class ChromeAIProvider implements AIProvider {
 
   private async complete(prompt: string, errorContext?: string): Promise<string> {
     if (typeof LanguageModel === "undefined") {
-      throw new Error("Chrome Built-in AI is not available. Enable it in chrome://flags or use Ollama instead.");
+      throw new Error(
+        "Chrome Built-in AI is not available. Enable it in chrome://flags or use Ollama instead.",
+      );
     }
 
     const status = await LanguageModel.availability();

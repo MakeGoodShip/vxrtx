@@ -1,20 +1,32 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, type AIProvider, type TabOrganizationAIResult, type OrganizeTabsOptions, type OrganizeBookmarksOptions, type StatusCallback } from "../types";
 import type {
-  TabInfo,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
+  TabInfo,
 } from "@/shared/types";
 import {
-  buildTabGroupingPrompt,
-  tabsToRelaxedInput,
-} from "../prompts/tab-grouping";
+  parseBookmarkLocation,
+  parseBookmarkOrganization,
+  parseTabOrganization,
+  withRetry,
+} from "../parser";
 import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
   bookmarksToRelaxedInput,
+  buildBookmarkLocationPrompt,
+  buildBookmarkOrganizePrompt,
 } from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation, withRetry } from "../parser";
+import { buildTabGroupingPrompt, tabsToRelaxedInput } from "../prompts/tab-grouping";
+import {
+  type AIProvider,
+  aiMaxTokens,
+  aiTimeoutMs,
+  fetchWithTimeout,
+  type OrganizeBookmarksOptions,
+  type OrganizeTabsOptions,
+  type StatusCallback,
+  SYSTEM_MESSAGE,
+  type TabOrganizationAIResult,
+} from "../types";
 
 /**
  * Ollama provider — connects to a local Ollama instance via its OpenAI-compatible API.
@@ -27,10 +39,18 @@ export class OllamaProvider implements AIProvider {
     private model: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+  async organizeTabs(
+    tabs: TabInfo[],
+    options?: OrganizeTabsOptions,
+  ): Promise<TabOrganizationAIResult> {
     const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = tabsToRelaxedInput(tabs); // Secure tier: titles only, no URLs
-    const prompt = buildTabGroupingPrompt(input, { includeUrls: false, granularity, corrections, guidance });
+    const prompt = buildTabGroupingPrompt(input, {
+      includeUrls: false,
+      granularity,
+      corrections,
+      guidance,
+    });
     return withRetry(
       (errorContext) => this.complete(prompt, tabs.length, errorContext),
       parseTabOrganization,
@@ -44,7 +64,11 @@ export class OllamaProvider implements AIProvider {
   ): Promise<BookmarkOrganizationResult> {
     const { granularity, guidance, onStatus } = options ?? {};
     const input = bookmarksToRelaxedInput(bookmarks);
-    const prompt = buildBookmarkOrganizePrompt(input, { includeUrls: false, granularity, guidance });
+    const prompt = buildBookmarkOrganizePrompt(input, {
+      includeUrls: false,
+      granularity,
+      guidance,
+    });
     const parsed = await withRetry(
       (errorContext) => this.complete(prompt, bookmarks.length, errorContext),
       parseBookmarkOrganization,
@@ -74,29 +98,39 @@ export class OllamaProvider implements AIProvider {
     return parsed.suggestions;
   }
 
-  private async complete(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
+  private async complete(
+    prompt: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
     const timeout = aiTimeoutMs(itemCount);
     const maxTokens = aiMaxTokens(itemCount);
     const url = `${this.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
 
-    console.log(`[vxrtx] Ollama request: model=${this.model}, items=${itemCount}, prompt=${userContent.length} chars, timeout=${Math.round(timeout / 1000)}s`);
+    console.log(
+      `[vxrtx] Ollama request: model=${this.model}, items=${itemCount}, prompt=${userContent.length} chars, timeout=${Math.round(timeout / 1000)}s`,
+    );
     const startTime = Date.now();
 
-    const response = await fetchWithTimeout(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: "system", content: SYSTEM_MESSAGE },
-          { role: "user", content: userContent },
-        ],
-        temperature: 0.0,
-        max_tokens: maxTokens,
-        stream: false,
-      }),
-    }, timeout);
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: "system", content: SYSTEM_MESSAGE },
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.0,
+          max_tokens: maxTokens,
+          stream: false,
+        }),
+      },
+      timeout,
+    );
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -109,7 +143,10 @@ export class OllamaProvider implements AIProvider {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      console.error(`[vxrtx] Ollama empty response after ${elapsed}s:`, JSON.stringify(data).slice(0, 500));
+      console.error(
+        `[vxrtx] Ollama empty response after ${elapsed}s:`,
+        JSON.stringify(data).slice(0, 500),
+      );
       throw new Error("No content in Ollama response");
     }
 

@@ -1,12 +1,11 @@
-import type { AIProvider } from "./types";
-import type { Settings } from "@/shared/types";
 import { getSettings } from "@/core/storage";
-import { OllamaProvider } from "./providers/ollama";
+import type { Settings } from "@/shared/types";
 import { ChromeAIProvider } from "./providers/chrome-ai";
-import { LocalProvider } from "./providers/local";
+import { OllamaProvider } from "./providers/ollama";
+import { OpenRouterProvider } from "./providers/openrouter";
 import { RelaxedProvider } from "./providers/relaxed";
 import { YoloProvider } from "./providers/yolo";
-import { OpenRouterProvider } from "./providers/openrouter";
+import type { AIProvider } from "./types";
 
 export async function getAIProvider(): Promise<AIProvider> {
   const settings = await getSettings();
@@ -18,11 +17,7 @@ function createProvider(settings: Settings): AIProvider {
 
   // OpenRouter handles both relaxed/yolo tiers via the includeUrls flag
   if (settings.aiModelProvider === "openrouter" && settings.aiTier !== "secure") {
-    return new OpenRouterProvider(
-      settings.openrouterApiKey,
-      settings.openrouterModel,
-      includeUrls,
-    );
+    return new OpenRouterProvider(settings.openrouterApiKey, settings.openrouterModel, includeUrls);
   }
 
   switch (settings.aiTier) {
@@ -51,7 +46,6 @@ function createLocalProvider(settings: Settings): AIProvider {
       return new OllamaProvider(settings.ollamaUrl, settings.ollamaModel);
     case "chrome-ai":
       return new ChromeAIProvider();
-    case "rule-based":
     default:
       // Rule-based is handled in the service worker before reaching the provider.
       // If we get here, throw a clear error rather than silently failing.

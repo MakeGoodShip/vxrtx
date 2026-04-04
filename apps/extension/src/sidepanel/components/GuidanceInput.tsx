@@ -1,19 +1,32 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sendMessage } from "@/shared/messaging";
-import type { Settings } from "@/shared/types";
 
 const TAB_PRESETS = [
   { label: "By project", value: "Group tabs by project or codebase, not by domain" },
   { label: "By domain", value: "Group tabs primarily by website domain" },
-  { label: "By activity", value: "Group tabs by what I'm actively working on vs. reference material" },
+  {
+    label: "By activity",
+    value: "Group tabs by what I'm actively working on vs. reference material",
+  },
   { label: "Fewer groups", value: "Create as few groups as possible, merge aggressively" },
 ];
 
 const BOOKMARK_PRESETS = [
   { label: "By topic", value: "Organize bookmarks by topic and subject matter" },
-  { label: "By purpose", value: "Organize bookmarks by purpose: tools, reference, reading, entertainment" },
-  { label: "Nested", value: "Organize into a hierarchical folder tree using '/' paths like 'Dev/Frontend'. Group related categories under shared parents." },
-  { label: "Flat", value: "Create a completely flat folder structure. Do NOT use '/' nesting. Use only simple top-level folder names." },
+  {
+    label: "By purpose",
+    value: "Organize bookmarks by purpose: tools, reference, reading, entertainment",
+  },
+  {
+    label: "Nested",
+    value:
+      "Organize into a hierarchical folder tree using '/' paths like 'Dev/Frontend'. Group related categories under shared parents.",
+  },
+  {
+    label: "Flat",
+    value:
+      "Create a completely flat folder structure. Do NOT use '/' nesting. Use only simple top-level folder names.",
+  },
 ];
 
 export function GuidanceInput({
@@ -80,9 +93,10 @@ export function GuidanceInput({
             ref={textareaRef}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={type === "tabs"
-              ? "e.g., Group by project, keep GitHub and Linear tabs together..."
-              : "e.g., Organize by topic, separate work from personal..."
+            placeholder={
+              type === "tabs"
+                ? "e.g., Group by project, keep GitHub and Linear tabs together..."
+                : "e.g., Organize by topic, separate work from personal..."
             }
             rows={2}
             className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-brand-400 focus:outline-none"

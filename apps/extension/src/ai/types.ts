@@ -1,11 +1,11 @@
 import type {
-  TabInfo,
-  TabGroupSuggestion,
   BookmarkInfo,
   BookmarkOrganizationResult,
-  LocationSuggestion,
-  GroupingGranularity,
   CorrectionSignal,
+  GroupingGranularity,
+  LocationSuggestion,
+  TabGroupSuggestion,
+  TabInfo,
 } from "@/shared/types";
 
 export interface TabOrganizationAIResult {
@@ -31,10 +31,7 @@ export interface OrganizeBookmarksOptions {
 }
 
 export interface AIProvider {
-  organizeTabs(
-    tabs: TabInfo[],
-    options?: OrganizeTabsOptions,
-  ): Promise<TabOrganizationAIResult>;
+  organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult>;
   organizeBookmarks(
     bookmarks: BookmarkInfo[],
     options?: OrganizeBookmarksOptions,
@@ -51,7 +48,8 @@ export interface AIRequestOptions {
   model?: string;
 }
 
-export const SYSTEM_MESSAGE = "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
+export const SYSTEM_MESSAGE =
+  "You are a browser tab and bookmark organizer. Always respond with ONLY valid JSON — no prose, no markdown, no code fences.";
 
 /** Route Claude model by item count: Haiku for small sets, Sonnet for large. */
 const CLAUDE_HAIKU = "claude-haiku-4-5-20251001";
@@ -76,7 +74,10 @@ const AI_FETCH_MAX_TIMEOUT_MS = 90_000;
 
 /** Calculate timeout based on item count. 30s base + 0.25s per item, capped at 90s. */
 export function aiTimeoutMs(itemCount: number): number {
-  return Math.min(AI_FETCH_BASE_TIMEOUT_MS + itemCount * AI_FETCH_PER_ITEM_MS, AI_FETCH_MAX_TIMEOUT_MS);
+  return Math.min(
+    AI_FETCH_BASE_TIMEOUT_MS + itemCount * AI_FETCH_PER_ITEM_MS,
+    AI_FETCH_MAX_TIMEOUT_MS,
+  );
 }
 
 /** Fetch wrapper with AbortController timeout. Throws on timeout instead of hanging forever. */

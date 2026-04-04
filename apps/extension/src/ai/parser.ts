@@ -1,16 +1,26 @@
 import { z } from "zod";
-import type { TabOrganizationAIResult } from "./types";
 import type { TabGroupColor } from "@/shared/types";
+import type { TabOrganizationAIResult } from "./types";
 
 const TAB_GROUP_COLORS: TabGroupColor[] = [
-  "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange",
+  "grey",
+  "blue",
+  "red",
+  "yellow",
+  "green",
+  "pink",
+  "purple",
+  "cyan",
+  "orange",
 ];
 
 const TabGroupSuggestionSchema = z.object({
   name: z.string().trim().min(1, "Group name must not be empty"),
-  color: z.string().transform((c) =>
-    TAB_GROUP_COLORS.includes(c as TabGroupColor) ? c as TabGroupColor : "grey"
-  ),
+  color: z
+    .string()
+    .transform((c) =>
+      TAB_GROUP_COLORS.includes(c as TabGroupColor) ? (c as TabGroupColor) : "grey",
+    ),
   tabIds: z.array(z.number()).min(1, "Group must contain at least one tab"),
 });
 
@@ -22,8 +32,14 @@ const TabOrganizationSchema = z.object({
 });
 
 const BookmarkFolderSchema = z.object({
-  name: z.string().trim().min(1, "Folder name must not be empty")
-    .refine((n) => !n.startsWith("/") && !n.endsWith("/") && !n.includes("//"), "Folder name must not have leading/trailing or double slashes")
+  name: z
+    .string()
+    .trim()
+    .min(1, "Folder name must not be empty")
+    .refine(
+      (n) => !n.startsWith("/") && !n.endsWith("/") && !n.includes("//"),
+      "Folder name must not have leading/trailing or double slashes",
+    )
     .refine((n) => n.split("/").length <= 3, "Folder nesting must not exceed 3 levels"),
   bookmarkIds: z.array(z.string()).min(1, "Folder must contain at least one bookmark"),
 });
@@ -53,9 +69,9 @@ class JsonExtractionError extends Error {
 }
 
 function isRetryableParseError(err: unknown): boolean {
-  return err instanceof SyntaxError
-    || err instanceof z.ZodError
-    || err instanceof JsonExtractionError;
+  return (
+    err instanceof SyntaxError || err instanceof z.ZodError || err instanceof JsonExtractionError
+  );
 }
 
 /**
@@ -93,7 +109,6 @@ export async function withRetry<T>(
     }
   }
 }
-
 
 export function parseTabOrganization(raw: string): TabOrganizationAIResult {
   const json = extractJson(raw);

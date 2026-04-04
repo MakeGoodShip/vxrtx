@@ -1,5 +1,5 @@
-import type { TabInfo, GroupingGranularity, CorrectionSignal } from "@/shared/types";
 import { correctionsBlock } from "@/core/corrections";
+import type { CorrectionSignal, GroupingGranularity, TabInfo } from "@/shared/types";
 
 interface TabInput {
   id: number;
@@ -108,17 +108,12 @@ Now analyze the real tabs below using the same approach:`;
 
 // ─── Module: Data Block ─────────────────────────────────────────────
 
-function dataBlock(
-  tabs: TabInput[],
-  options: { includeUrls: boolean },
-): string {
+function dataBlock(tabs: TabInput[], options: { includeUrls: boolean }): string {
   const lines = tabs.map((t) => {
     const parts = [`id:${t.id}`, `title:"${t.title}"`];
     if (options.includeUrls && t.url) parts.push(`url:"${t.url}"`);
     if (t.lastAccessed) {
-      const daysAgo = Math.floor(
-        (Date.now() - t.lastAccessed) / (1000 * 60 * 60 * 24),
-      );
+      const daysAgo = Math.floor((Date.now() - t.lastAccessed) / (1000 * 60 * 60 * 24));
       parts.push(`last_accessed:${daysAgo}d_ago`);
     }
     return `  { ${parts.join(", ")} }`;
@@ -156,10 +151,7 @@ export interface TabPromptOptions {
   guidance?: string;
 }
 
-export function buildTabGroupingPrompt(
-  tabs: TabInput[],
-  options: TabPromptOptions,
-): string {
+export function buildTabGroupingPrompt(tabs: TabInput[], options: TabPromptOptions): string {
   const parts = buildTabGroupingPromptParts(tabs, options);
   return `${parts.cached}\n\n${parts.dynamic}`;
 }
@@ -168,11 +160,11 @@ export function buildTabGroupingPromptParts(
   tabs: TabInput[],
   options: TabPromptOptions,
 ): PromptParts {
-  const dynamicSections = [
-    granularityInstruction(options.granularity ?? 3),
-  ];
+  const dynamicSections = [granularityInstruction(options.granularity ?? 3)];
   if (options.guidance?.trim()) {
-    dynamicSections.push(`USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when grouping the tabs below.`);
+    dynamicSections.push(
+      `USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when grouping the tabs below.`,
+    );
   }
   const corrBlock = correctionsBlock(options.corrections ?? []);
   if (corrBlock) dynamicSections.push(corrBlock);

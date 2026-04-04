@@ -1,9 +1,4 @@
-import type {
-  TabInfo,
-  TabGroupColor,
-  TabGroupSuggestion,
-  LockedTabGroup,
-} from "@/shared/types";
+import type { LockedTabGroup, TabGroupColor, TabGroupSuggestion, TabInfo } from "@/shared/types";
 
 export async function queryAllTabs(): Promise<TabInfo[]> {
   const tabs = await chrome.tabs.query({ currentWindow: true });
@@ -21,20 +16,13 @@ export async function queryAllTabs(): Promise<TabInfo[]> {
     }));
 }
 
-export async function queryTabGroups(
-  windowId: number,
-): Promise<chrome.tabGroups.TabGroup[]> {
+export async function queryTabGroups(windowId: number): Promise<chrome.tabGroups.TabGroup[]> {
   return chrome.tabGroups.query({ windowId });
 }
 
-export function getLockedTabIds(
-  lockedGroups: LockedTabGroup[],
-  tabs: TabInfo[],
-): Set<number> {
+export function getLockedTabIds(lockedGroups: LockedTabGroup[], tabs: TabInfo[]): Set<number> {
   const lockedGroupIds = new Set(lockedGroups.map((g) => g.chromeGroupId));
-  return new Set(
-    tabs.filter((t) => lockedGroupIds.has(t.groupId)).map((t) => t.id),
-  );
+  return new Set(tabs.filter((t) => lockedGroupIds.has(t.groupId)).map((t) => t.id));
 }
 
 export function resolveStaleLockedGroups(
@@ -46,9 +34,7 @@ export function resolveStaleLockedGroups(
   const resolved = lockedGroups.map((locked) => {
     if (liveIds.has(locked.chromeGroupId)) return locked;
     // Try to match by name + color
-    const match = liveGroups.find(
-      (g) => g.title === locked.name && g.color === locked.color,
-    );
+    const match = liveGroups.find((g) => g.title === locked.name && g.color === locked.color);
     if (match) {
       changed = true;
       return { ...locked, chromeGroupId: match.id };
@@ -98,22 +84,14 @@ export function findDuplicatesByUrl(tabs: TabInfo[]): number[][] {
   return Array.from(urlMap.values()).filter((ids) => ids.length > 1);
 }
 
-export function findStaleTabs(
-  tabs: TabInfo[],
-  staleDays: number,
-): number[] {
+export function findStaleTabs(tabs: TabInfo[], staleDays: number): number[] {
   const threshold = Date.now() - staleDays * 24 * 60 * 60 * 1000;
   return tabs
-    .filter(
-      (tab) =>
-        tab.lastAccessed !== undefined && tab.lastAccessed < threshold,
-    )
+    .filter((tab) => tab.lastAccessed !== undefined && tab.lastAccessed < threshold)
     .map((tab) => tab.id);
 }
 
-export function groupByDomain(
-  tabs: TabInfo[],
-): Map<string, TabInfo[]> {
+export function groupByDomain(tabs: TabInfo[]): Map<string, TabInfo[]> {
   const domainMap = new Map<string, TabInfo[]>();
   for (const tab of tabs) {
     try {
@@ -163,8 +141,7 @@ export function domainToTabGroups(
   for (const [domain, tabs] of domainMap) {
     if (tabs.length < minGroupSize) continue;
 
-    const color =
-      DOMAIN_COLOR_MAP[domain] ?? COLOR_CYCLE[colorIndex % COLOR_CYCLE.length];
+    const color = DOMAIN_COLOR_MAP[domain] ?? COLOR_CYCLE[colorIndex % COLOR_CYCLE.length];
     if (!DOMAIN_COLOR_MAP[domain]) colorIndex++;
 
     const name = domain.split(".")[0];
@@ -178,19 +155,83 @@ export function domainToTabGroups(
   return groups;
 }
 
-
 // ─── Keyword-Enhanced Rule-Based Grouping ───────────────────────────
 
 /** Common stop words to filter out of title keywords. */
 const STOP_WORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-  "has", "have", "had", "do", "does", "did", "will", "would", "could",
-  "should", "may", "might", "can", "this", "that", "these", "those",
-  "it", "its", "my", "your", "our", "their", "his", "her", "not", "no",
-  "how", "what", "when", "where", "who", "which", "why", "all", "each",
-  "new", "old", "get", "set", "use", "using", "home", "page", "about",
-  "http", "https", "www", "com", "org", "net", "io",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "has",
+  "have",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "can",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "its",
+  "my",
+  "your",
+  "our",
+  "their",
+  "his",
+  "her",
+  "not",
+  "no",
+  "how",
+  "what",
+  "when",
+  "where",
+  "who",
+  "which",
+  "why",
+  "all",
+  "each",
+  "new",
+  "old",
+  "get",
+  "set",
+  "use",
+  "using",
+  "home",
+  "page",
+  "about",
+  "http",
+  "https",
+  "www",
+  "com",
+  "org",
+  "net",
+  "io",
 ]);
 
 /** Extract meaningful keywords from a tab title. */

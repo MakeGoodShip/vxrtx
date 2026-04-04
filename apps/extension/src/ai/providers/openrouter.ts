@@ -1,28 +1,37 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
-  TabInfo,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
-  GroupingGranularity,
+  TabInfo,
 } from "@/shared/types";
 import {
-  buildTabGroupingPrompt,
-  tabsToYoloInput,
-  tabsToRelaxedInput,
-} from "../prompts/tab-grouping";
-import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkLocationPrompt,
-  bookmarksToYoloInput,
-  bookmarksToRelaxedInput,
-} from "../prompts/bookmark-grouping";
-import {
-  parseTabOrganization,
-  parseBookmarkOrganization,
   parseBookmarkLocation,
+  parseBookmarkOrganization,
+  parseTabOrganization,
   withRetry,
 } from "../parser";
+import {
+  bookmarksToRelaxedInput,
+  bookmarksToYoloInput,
+  buildBookmarkLocationPrompt,
+  buildBookmarkOrganizePrompt,
+} from "../prompts/bookmark-grouping";
+import {
+  buildTabGroupingPrompt,
+  tabsToRelaxedInput,
+  tabsToYoloInput,
+} from "../prompts/tab-grouping";
+import {
+  type AIProvider,
+  aiMaxTokens,
+  aiTimeoutMs,
+  fetchWithTimeout,
+  type OrganizeBookmarksOptions,
+  type OrganizeTabsOptions,
+  type StatusCallback,
+  SYSTEM_MESSAGE,
+  type TabOrganizationAIResult,
+} from "../types";
 
 /**
  * OpenRouter provider — unified gateway to Claude, GPT, Llama, Mistral, etc.
@@ -36,11 +45,12 @@ export class OpenRouterProvider implements AIProvider {
     private includeUrls: boolean,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+  async organizeTabs(
+    tabs: TabInfo[],
+    options?: OrganizeTabsOptions,
+  ): Promise<TabOrganizationAIResult> {
     const { granularity, corrections, guidance, onStatus } = options ?? {};
-    const input = this.includeUrls
-      ? tabsToYoloInput(tabs)
-      : tabsToRelaxedInput(tabs);
+    const input = this.includeUrls ? tabsToYoloInput(tabs) : tabsToRelaxedInput(tabs);
     const prompt = buildTabGroupingPrompt(input, {
       includeUrls: this.includeUrls,
       granularity,
@@ -100,7 +110,11 @@ export class OpenRouterProvider implements AIProvider {
     return parsed.suggestions;
   }
 
-  private async complete(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
+  private async complete(
+    prompt: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     if (!this.apiKey) throw new Error("OpenRouter API key not configured");
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
@@ -108,7 +122,9 @@ export class OpenRouterProvider implements AIProvider {
     const promptChars = userContent.length;
 
     const maxTokens = aiMaxTokens(itemCount);
-    console.log(`[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, max_tokens=${maxTokens}, timeout=${Math.round(timeout / 1000)}s`);
+    console.log(
+      `[vxrtx] OpenRouter request: model=${this.model}, items=${itemCount}, prompt=${promptChars} chars, max_tokens=${maxTokens}, timeout=${Math.round(timeout / 1000)}s`,
+    );
     const startTime = Date.now();
 
     let response: Response;
@@ -152,7 +168,10 @@ export class OpenRouterProvider implements AIProvider {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
-      console.error(`[vxrtx] OpenRouter empty response after ${elapsed}s:`, JSON.stringify(data).slice(0, 500));
+      console.error(
+        `[vxrtx] OpenRouter empty response after ${elapsed}s:`,
+        JSON.stringify(data).slice(0, 500),
+      );
       throw new Error("No content in OpenRouter response");
     }
 

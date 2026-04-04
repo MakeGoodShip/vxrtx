@@ -28,9 +28,7 @@ export function GranularitySlider({
           max={5}
           step={1}
           value={value}
-          onChange={(e) =>
-            onChange(Number(e.target.value) as GroupingGranularity)
-          }
+          onChange={(e) => onChange(Number(e.target.value) as GroupingGranularity)}
           disabled={disabled}
           className="h-1 flex-1"
         />

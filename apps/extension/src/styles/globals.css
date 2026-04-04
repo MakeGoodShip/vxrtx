@@ -68,33 +68,65 @@ body::before {
 /* ─── Animations ──────────────────────────────────── */
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes pulse-soft {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes spinner-glow {
-  0%, 100% { filter: drop-shadow(0 0 2px var(--color-brand-400)); }
-  50% { filter: drop-shadow(0 0 8px var(--color-brand-400)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px var(--color-brand-400));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px var(--color-brand-400));
+  }
 }
 
 .animate-fade-in {
@@ -114,11 +146,21 @@ body::before {
 }
 
 /* Staggered entrance delays for lists */
-.stagger-1 { animation-delay: 30ms; }
-.stagger-2 { animation-delay: 60ms; }
-.stagger-3 { animation-delay: 90ms; }
-.stagger-4 { animation-delay: 120ms; }
-.stagger-5 { animation-delay: 150ms; }
+.stagger-1 {
+  animation-delay: 30ms;
+}
+.stagger-2 {
+  animation-delay: 60ms;
+}
+.stagger-3 {
+  animation-delay: 90ms;
+}
+.stagger-4 {
+  animation-delay: 120ms;
+}
+.stagger-5 {
+  animation-delay: 150ms;
+}
 
 /* ─── Range Slider ────────────────────────────────── */
 
@@ -141,14 +183,20 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--color-brand-400);
   border: 2px solid var(--color-coal);
-  box-shadow: 0 0 0 2px var(--color-brand-400), 0 0 12px color-mix(in srgb, var(--color-brand-400) 30%, transparent);
+  box-shadow:
+    0 0 0 2px var(--color-brand-400),
+    0 0 12px color-mix(in srgb, var(--color-brand-400) 30%, transparent);
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  box-shadow: 0 0 0 2px var(--color-brand-300), 0 0 16px color-mix(in srgb, var(--color-brand-400) 50%, transparent);
+  box-shadow:
+    0 0 0 2px var(--color-brand-300),
+    0 0 16px color-mix(in srgb, var(--color-brand-400) 50%, transparent);
 }
 
 input[type="range"]:disabled {
@@ -213,6 +261,10 @@ button:focus-visible {
 
 /* ─── Transitions ─────────────────────────────────── */
 
-button, a, input, select, textarea {
+button,
+a,
+input,
+select,
+textarea {
   transition: all 0.15s ease;
 }

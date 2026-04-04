@@ -1,24 +1,39 @@
-import { SYSTEM_MESSAGE, fetchWithTimeout, aiTimeoutMs, aiMaxTokens, selectClaudeModel, type AIProvider, type TabOrganizationAIResult, type StatusCallback, type OrganizeTabsOptions, type OrganizeBookmarksOptions } from "../types";
 import type {
-  TabInfo,
+  AIModelProvider,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
-  AIModelProvider,
-  GroupingGranularity,
+  TabInfo,
 } from "@/shared/types";
+import {
+  parseBookmarkLocation,
+  parseBookmarkOrganization,
+  parseTabOrganization,
+  withRetry,
+} from "../parser";
+import {
+  bookmarksToYoloInput,
+  buildBookmarkLocationPrompt,
+  buildBookmarkOrganizePrompt,
+  buildBookmarkOrganizePromptParts,
+} from "../prompts/bookmark-grouping";
 import {
   buildTabGroupingPrompt,
   buildTabGroupingPromptParts,
   tabsToYoloInput,
 } from "../prompts/tab-grouping";
 import {
-  buildBookmarkOrganizePrompt,
-  buildBookmarkOrganizePromptParts,
-  buildBookmarkLocationPrompt,
-  bookmarksToYoloInput,
-} from "../prompts/bookmark-grouping";
-import { parseTabOrganization, parseBookmarkOrganization, parseBookmarkLocation, withRetry } from "../parser";
+  type AIProvider,
+  aiMaxTokens,
+  aiTimeoutMs,
+  fetchWithTimeout,
+  type OrganizeBookmarksOptions,
+  type OrganizeTabsOptions,
+  type StatusCallback,
+  SYSTEM_MESSAGE,
+  selectClaudeModel,
+  type TabOrganizationAIResult,
+} from "../types";
 
 export class YoloProvider implements AIProvider {
   constructor(
@@ -27,14 +42,18 @@ export class YoloProvider implements AIProvider {
     private openaiKey: string,
   ) {}
 
-  async organizeTabs(tabs: TabInfo[], options?: OrganizeTabsOptions): Promise<TabOrganizationAIResult> {
+  async organizeTabs(
+    tabs: TabInfo[],
+    options?: OrganizeTabsOptions,
+  ): Promise<TabOrganizationAIResult> {
     const { granularity, corrections, guidance, onStatus } = options ?? {};
     const input = tabsToYoloInput(tabs);
     const promptOpts = { includeUrls: true, granularity, corrections, guidance };
     if (this.modelProvider === "claude") {
       const parts = buildTabGroupingPromptParts(input, promptOpts);
       return withRetry(
-        (errorContext) => this.completeClaude(parts.cached, parts.dynamic, tabs.length, errorContext),
+        (errorContext) =>
+          this.completeClaude(parts.cached, parts.dynamic, tabs.length, errorContext),
         parseTabOrganization,
         onStatus,
       );
@@ -54,11 +73,12 @@ export class YoloProvider implements AIProvider {
     const { granularity, guidance, onStatus } = options ?? {};
     const input = bookmarksToYoloInput(bookmarks);
     const promptOpts = { includeUrls: true, granularity, guidance };
-    let parsed;
+    let parsed: Awaited<ReturnType<typeof parseBookmarkOrganization>>;
     if (this.modelProvider === "claude") {
       const parts = buildBookmarkOrganizePromptParts(input, promptOpts);
       parsed = await withRetry(
-        (errorContext) => this.completeClaude(parts.cached, parts.dynamic, bookmarks.length, errorContext),
+        (errorContext) =>
+          this.completeClaude(parts.cached, parts.dynamic, bookmarks.length, errorContext),
         parseBookmarkOrganization,
         onStatus,
       );
@@ -89,9 +109,10 @@ export class YoloProvider implements AIProvider {
       includeUrls: true,
     });
     const parsed = await withRetry(
-      (errorContext) => this.modelProvider === "claude"
-        ? this.completeClaude(prompt, "", folders.length, errorContext)
-        : this.completeOpenAI(prompt, folders.length, errorContext),
+      (errorContext) =>
+        this.modelProvider === "claude"
+          ? this.completeClaude(prompt, "", folders.length, errorContext)
+          : this.completeOpenAI(prompt, folders.length, errorContext),
       parseBookmarkLocation,
       onStatus,
     );
@@ -109,32 +130,36 @@ export class YoloProvider implements AIProvider {
     const userBlocks: { type: string; text: string; cache_control?: { type: string } }[] = [
       { type: "text", text: cachedContent, cache_control: { type: "ephemeral" } },
     ];
-    const dynamicText = errorContext
-      ? `${dynamicContent}\n\n${errorContext}`
-      : dynamicContent;
+    const dynamicText = errorContext ? `${dynamicContent}\n\n${errorContext}` : dynamicContent;
     if (dynamicText) {
       userBlocks.push({ type: "text", text: dynamicText });
     }
 
     const model = selectClaudeModel(itemCount);
     const timeout = aiTimeoutMs(itemCount);
-    console.log(`[vxrtx] Claude request: model=${model}, items=${itemCount}, timeout=${Math.round(timeout / 1000)}s`);
-    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.claudeKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
+    console.log(
+      `[vxrtx] Claude request: model=${model}, items=${itemCount}, timeout=${Math.round(timeout / 1000)}s`,
+    );
+    const response = await fetchWithTimeout(
+      "https://api.anthropic.com/v1/messages",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.claudeKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: aiMaxTokens(itemCount),
+          temperature: 0.0,
+          system: SYSTEM_MESSAGE,
+          messages: [{ role: "user", content: userBlocks }],
+        }),
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: aiMaxTokens(itemCount),
-        temperature: 0.0,
-        system: SYSTEM_MESSAGE,
-        messages: [{ role: "user", content: userBlocks }],
-      }),
-    }, timeout);
+      timeout,
+    );
 
     if (!response.ok) {
       const err = await response.text();
@@ -142,36 +167,42 @@ export class YoloProvider implements AIProvider {
     }
 
     const data = await response.json();
-    const textBlock = data.content?.find(
-      (b: { type: string }) => b.type === "text",
-    );
+    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     if (!textBlock?.text) throw new Error("No text in Claude response");
     return textBlock.text;
   }
 
-  private async completeOpenAI(prompt: string, itemCount: number, errorContext?: string): Promise<string> {
+  private async completeOpenAI(
+    prompt: string,
+    itemCount: number,
+    errorContext?: string,
+  ): Promise<string> {
     if (!this.openaiKey) throw new Error("OpenAI API key not configured");
 
     const userContent = errorContext ? `${prompt}\n\n${errorContext}` : prompt;
     const timeout = aiTimeoutMs(itemCount);
 
-    const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.openaiKey}`,
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: SYSTEM_MESSAGE },
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.0,
+          max_tokens: aiMaxTokens(itemCount),
+          response_format: { type: "json_object" },
+        }),
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: SYSTEM_MESSAGE },
-          { role: "user", content: userContent },
-        ],
-        temperature: 0.0,
-        max_tokens: aiMaxTokens(itemCount),
-        response_format: { type: "json_object" },
-      }),
-    }, timeout);
+      timeout,
+    );
 
     if (!response.ok) {
       const err = await response.text();

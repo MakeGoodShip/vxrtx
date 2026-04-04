@@ -1,17 +1,15 @@
 import type {
-  BookmarkInfo,
-  BookmarkSnapshot,
-  BookmarkFolderSuggestion,
-  BookmarkOrganizationResult,
-  FolderInfo,
   BookmarkDuplicateGroup,
-  LockedBookmarkFolder,
+  BookmarkFolderSuggestion,
+  BookmarkInfo,
+  BookmarkOrganizationResult,
+  BookmarkSnapshot,
+  FolderInfo,
   GroupingGranularity,
+  LockedBookmarkFolder,
 } from "@/shared/types";
 
-export async function getBookmarkTree(): Promise<
-  chrome.bookmarks.BookmarkTreeNode[]
-> {
+export async function getBookmarkTree(): Promise<chrome.bookmarks.BookmarkTreeNode[]> {
   return chrome.bookmarks.getTree();
 }
 
@@ -33,9 +31,7 @@ export async function removeBookmark(id: string): Promise<void> {
   await chrome.bookmarks.remove(id);
 }
 
-export function flattenBookmarks(
-  nodes: chrome.bookmarks.BookmarkTreeNode[],
-): BookmarkInfo[] {
+export function flattenBookmarks(nodes: chrome.bookmarks.BookmarkTreeNode[]): BookmarkInfo[] {
   const result: BookmarkInfo[] = [];
   function walk(node: chrome.bookmarks.BookmarkTreeNode) {
     if (node.url) {
@@ -61,14 +57,9 @@ export function extractFolders(
   parentPath: string = "",
 ): FolderInfo[] {
   const folders: FolderInfo[] = [];
-  function walk(
-    node: chrome.bookmarks.BookmarkTreeNode,
-    currentPath: string,
-  ) {
+  function walk(node: chrome.bookmarks.BookmarkTreeNode, currentPath: string) {
     if (!node.url && node.children) {
-      const path = currentPath
-        ? `${currentPath}/${node.title}`
-        : node.title || "Root";
+      const path = currentPath ? `${currentPath}/${node.title}` : node.title || "Root";
       if (node.id !== "0") {
         folders.push({
           id: node.id,
@@ -90,10 +81,7 @@ export function buildFolderPathMap(
   nodes: chrome.bookmarks.BookmarkTreeNode[],
 ): Map<string, string> {
   const map = new Map<string, string>();
-  function walk(
-    node: chrome.bookmarks.BookmarkTreeNode,
-    path: string,
-  ) {
+  function walk(node: chrome.bookmarks.BookmarkTreeNode, path: string) {
     const currentPath = path ? `${path}/${node.title}` : node.title || "";
     if (!node.url) {
       map.set(node.id, currentPath || "Root");
@@ -108,9 +96,7 @@ export function buildFolderPathMap(
   return map;
 }
 
-export function findDuplicateBookmarks(
-  bookmarks: BookmarkInfo[],
-): string[][] {
+export function findDuplicateBookmarks(bookmarks: BookmarkInfo[]): string[][] {
   const urlMap = new Map<string, string[]>();
   for (const bm of bookmarks) {
     if (!bm.url) continue;
@@ -162,11 +148,7 @@ export async function findEmptyFolders(
       (child) => child.url || (child.children && child.children.length > 0),
     );
 
-    if (
-      !hasContent &&
-      node.children.length === 0 &&
-      !PROTECTED_FOLDER_IDS.has(node.id)
-    ) {
+    if (!hasContent && node.children.length === 0 && !PROTECTED_FOLDER_IDS.has(node.id)) {
       empties.push({ id: node.id, title: node.title, path: currentPath });
     }
 
@@ -204,9 +186,7 @@ export async function removeEmptyFolders(): Promise<number> {
 /**
  * Group bookmarks by domain, similar to tab's groupByDomain.
  */
-export function groupBookmarksByDomain(
-  bookmarks: BookmarkInfo[],
-): Map<string, BookmarkInfo[]> {
+export function groupBookmarksByDomain(bookmarks: BookmarkInfo[]): Map<string, BookmarkInfo[]> {
   const domainMap = new Map<string, BookmarkInfo[]>();
   for (const bm of bookmarks) {
     if (!bm.url) continue;
@@ -237,7 +217,8 @@ export function ruleBasedBookmarkOrganize(
   const domainMap = groupBookmarksByDomain(bookmarks);
 
   // Granularity affects minimum group size: 1→6, 2→4, 3→3, 4→2, 5→1
-  const minGroupSize = granularity <= 1 ? 6 : granularity <= 2 ? 4 : granularity <= 3 ? 3 : granularity <= 4 ? 2 : 1;
+  const minGroupSize =
+    granularity <= 1 ? 6 : granularity <= 2 ? 4 : granularity <= 3 ? 3 : granularity <= 4 ? 2 : 1;
 
   const folders: BookmarkFolderSuggestion[] = [];
   const ungrouped: BookmarkInfo[] = [];
@@ -276,9 +257,7 @@ export function ruleBasedBookmarkOrganize(
   };
 }
 
-export function snapshotBookmarks(
-  bookmarks: BookmarkInfo[],
-): BookmarkSnapshot[] {
+export function snapshotBookmarks(bookmarks: BookmarkInfo[]): BookmarkSnapshot[] {
   return bookmarks
     .filter((b) => b.parentId !== undefined && b.index !== undefined)
     .map((b) => ({

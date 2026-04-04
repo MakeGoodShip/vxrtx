@@ -19,11 +19,14 @@
     "build:docs": "pnpm --filter @vxrtx/docs build"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "lefthook": "^1.11.0",
     "turbo": "^2.9.3"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "lefthook",
       "sharp"
     ]
   }

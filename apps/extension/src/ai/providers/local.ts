@@ -1,10 +1,10 @@
-import type { AIProvider, TabOrganizationAIResult } from "../types";
 import type {
-  TabInfo,
   BookmarkInfo,
   BookmarkOrganizationResult,
   LocationSuggestion,
+  TabInfo,
 } from "@/shared/types";
+import type { AIProvider, TabOrganizationAIResult } from "../types";
 
 /**
  * Local/Secure provider stub.
@@ -18,20 +18,14 @@ export class LocalProvider implements AIProvider {
     );
   }
 
-  async organizeBookmarks(
-    _bookmarks: BookmarkInfo[],
-  ): Promise<BookmarkOrganizationResult> {
-    throw new Error(
-      "Local AI not yet available. Switch to Relaxed/YOLO tier in Settings.",
-    );
+  async organizeBookmarks(_bookmarks: BookmarkInfo[]): Promise<BookmarkOrganizationResult> {
+    throw new Error("Local AI not yet available. Switch to Relaxed/YOLO tier in Settings.");
   }
 
   async suggestBookmarkLocation(
     _bookmark: BookmarkInfo,
     _folders: { id: string; path: string }[],
   ): Promise<LocationSuggestion[]> {
-    throw new Error(
-      "Local AI not yet available. Switch to Relaxed/YOLO tier in Settings.",
-    );
+    throw new Error("Local AI not yet available. Switch to Relaxed/YOLO tier in Settings.");
   }
 }

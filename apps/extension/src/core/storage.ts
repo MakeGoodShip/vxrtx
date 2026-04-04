@@ -1,5 +1,13 @@
-import { STORAGE_KEYS, MAX_SNAPSHOTS, MAX_EXPERIMENT_LOGS } from "@/shared/constants";
-import { DEFAULT_SETTINGS, type Settings, type LockedTabGroup, type LockedBookmarkFolder, type Snapshot, type CorrectionSignal, type ExperimentLog } from "@/shared/types";
+import { MAX_EXPERIMENT_LOGS, MAX_SNAPSHOTS, STORAGE_KEYS } from "@/shared/constants";
+import {
+  type CorrectionSignal,
+  DEFAULT_SETTINGS,
+  type ExperimentLog,
+  type LockedBookmarkFolder,
+  type LockedTabGroup,
+  type Settings,
+  type Snapshot,
+} from "@/shared/types";
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
@@ -7,9 +15,7 @@ export async function getSettings(): Promise<Settings> {
   return { ...DEFAULT_SETTINGS, ...stored };
 }
 
-export async function saveSettings(
-  settings: Partial<Settings>,
-): Promise<void> {
+export async function saveSettings(settings: Partial<Settings>): Promise<void> {
   const current = await getSettings();
   await chrome.storage.local.set({
     [STORAGE_KEYS.SETTINGS]: { ...current, ...settings },
@@ -21,10 +27,7 @@ export async function getSessionData<T>(key: string): Promise<T | null> {
   return (result[key] as T) ?? null;
 }
 
-export async function setSessionData<T>(
-  key: string,
-  data: T,
-): Promise<void> {
+export async function setSessionData<T>(key: string, data: T): Promise<void> {
   await chrome.storage.session.set({ [key]: data });
 }
 
@@ -42,17 +45,13 @@ export async function getLockedBookmarkFolders(): Promise<LockedBookmarkFolder[]
   return (result[STORAGE_KEYS.LOCKED_BOOKMARK_FOLDERS] as LockedBookmarkFolder[]) ?? [];
 }
 
-export async function saveLockedBookmarkFolders(
-  folders: LockedBookmarkFolder[],
-): Promise<void> {
+export async function saveLockedBookmarkFolders(folders: LockedBookmarkFolder[]): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.LOCKED_BOOKMARK_FOLDERS]: folders,
   });
 }
 
-export async function saveLockedTabGroups(
-  groups: LockedTabGroup[],
-): Promise<void> {
+export async function saveLockedTabGroups(groups: LockedTabGroup[]): Promise<void> {
   await chrome.storage.local.set({
     [STORAGE_KEYS.LOCKED_TAB_GROUPS]: groups,
   });
@@ -80,9 +79,8 @@ export async function appendExperimentLog(log: ExperimentLog): Promise<void> {
   const logs = await getExperimentLogs();
   logs.push(log);
   // Keep only the most recent entries
-  const trimmed = logs.length > MAX_EXPERIMENT_LOGS
-    ? logs.slice(logs.length - MAX_EXPERIMENT_LOGS)
-    : logs;
+  const trimmed =
+    logs.length > MAX_EXPERIMENT_LOGS ? logs.slice(logs.length - MAX_EXPERIMENT_LOGS) : logs;
   await chrome.storage.local.set({ [STORAGE_KEYS.EXPERIMENT_LOGS]: trimmed });
 }
 
@@ -120,10 +118,7 @@ export async function deleteSnapshot(id: string): Promise<void> {
   });
 }
 
-export async function renameSnapshot(
-  id: string,
-  label: string,
-): Promise<void> {
+export async function renameSnapshot(id: string, label: string): Promise<void> {
   const history = await getSnapshotHistory();
   const snap = history.find((s) => s.id === id);
   if (snap) {
@@ -134,9 +129,7 @@ export async function renameSnapshot(
   }
 }
 
-export async function importSnapshots(
-  incoming: Snapshot[],
-): Promise<number> {
+export async function importSnapshots(incoming: Snapshot[]): Promise<number> {
   const history = await getSnapshotHistory();
   const existingIds = new Set(history.map((s) => s.id));
   const newSnapshots = incoming.filter((s) => !existingIds.has(s.id));

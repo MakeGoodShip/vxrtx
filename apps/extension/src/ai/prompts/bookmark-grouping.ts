@@ -98,10 +98,7 @@ Now organize the real bookmarks below using the same approach:`;
 
 // ─── Module: Data Block ─────────────────────────────────────────────
 
-function dataBlock(
-  bookmarks: BookmarkInput[],
-  options: { includeUrls: boolean },
-): string {
+function dataBlock(bookmarks: BookmarkInput[], options: { includeUrls: boolean }): string {
   const lines = bookmarks.map((b) => {
     const parts = [`id:"${b.id}"`, `title:"${b.title}"`];
     if (options.includeUrls && b.url) parts.push(`url:"${b.url}"`);
@@ -148,11 +145,11 @@ export function buildBookmarkOrganizePromptParts(
   bookmarks: BookmarkInput[],
   options: BookmarkPromptOptions,
 ): PromptParts {
-  const dynamicSections = [
-    granularityInstruction(options.granularity ?? 3),
-  ];
+  const dynamicSections = [granularityInstruction(options.granularity ?? 3)];
   if (options.guidance?.trim()) {
-    dynamicSections.push(`USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when organizing the bookmarks below.`);
+    dynamicSections.push(
+      `USER GUIDANCE:\n${options.guidance.trim()}\nFollow this guidance when organizing the bookmarks below.`,
+    );
   }
   dynamicSections.push(dataBlock(bookmarks, options));
 
@@ -167,9 +164,7 @@ export function buildBookmarkLocationPrompt(
   folders: { id: string; path: string }[],
   options: { includeUrls: boolean },
 ): string {
-  const folderList = folders
-    .map((f) => `  { id:"${f.id}", path:"${f.path}" }`)
-    .join("\n");
+  const folderList = folders.map((f) => `  { id:"${f.id}", path:"${f.path}" }`).join("\n");
 
   const bookmarkDesc =
     options.includeUrls && bookmark.url
@@ -195,10 +190,7 @@ Return up to 3 suggestions, ranked by confidence (0-1).`;
 
 // ─── Input Mappers ──────────────────────────────────────────────────
 
-
-export function bookmarksToYoloInput(
-  bookmarks: BookmarkInfo[],
-): BookmarkInput[] {
+export function bookmarksToYoloInput(bookmarks: BookmarkInfo[]): BookmarkInput[] {
   return bookmarks.map((b) => ({
     id: b.id,
     title: b.title,
@@ -206,9 +198,7 @@ export function bookmarksToYoloInput(
   }));
 }
 
-export function bookmarksToRelaxedInput(
-  bookmarks: BookmarkInfo[],
-): BookmarkInput[] {
+export function bookmarksToRelaxedInput(bookmarks: BookmarkInfo[]): BookmarkInput[] {
   return bookmarks.map((b) => ({
     id: b.id,
     title: b.title,

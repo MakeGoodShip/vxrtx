@@ -77,7 +77,8 @@ export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
           port.disconnect();
           resolve({
             success: false,
-            error: "Operation timed out — no response from AI provider. Check your API key and network connection.",
+            error:
+              "Operation timed out — no response from AI provider. Check your API key and network connection.",
           } as MessageResponse<TRes>);
         }
       }, SILENCE_TIMEOUT_MS);
@@ -85,19 +86,17 @@ export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
 
     resetTimer();
 
-    port.onMessage.addListener(
-      (msg: MessageResponse<TRes> | ProgressUpdate) => {
-        if ("type" in msg && msg.type === "progress") {
-          resetTimer(); // Activity — keep waiting
-          onProgress?.(msg as ProgressUpdate);
-        } else if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          resolve(msg as MessageResponse<TRes>);
-          port.disconnect();
-        }
-      },
-    );
+    port.onMessage.addListener((msg: MessageResponse<TRes> | ProgressUpdate) => {
+      if ("type" in msg && msg.type === "progress") {
+        resetTimer(); // Activity — keep waiting
+        onProgress?.(msg as ProgressUpdate);
+      } else if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(msg as MessageResponse<TRes>);
+        port.disconnect();
+      }
+    });
 
     port.onDisconnect.addListener(() => {
       if (!settled && chrome.runtime.lastError) {
@@ -105,9 +104,7 @@ export function sendLongRunningMessage<TReq = unknown, TRes = unknown>(
         clearTimeout(timer);
         resolve({
           success: false,
-          error:
-            chrome.runtime.lastError.message ??
-            "Connection lost to background worker",
+          error: chrome.runtime.lastError.message ?? "Connection lost to background worker",
         } as MessageResponse<TRes>);
       }
     });

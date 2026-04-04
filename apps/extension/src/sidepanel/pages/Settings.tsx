@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "@/shared/messaging";
 import type {
-  AITier,
   AIModelProvider,
+  AITier,
   LocalAIProvider,
   Settings as SettingsType,
 } from "@/shared/types";
@@ -72,7 +72,7 @@ export function Settings() {
         // Check if current model is not in the popular list
         if (
           res.data.openrouterModel &&
-          !POPULAR_MODELS.some((m) => m.id === res.data!.openrouterModel)
+          !POPULAR_MODELS.some((m) => m.id === res.data?.openrouterModel)
         ) {
           setCustomModel(true);
         }
@@ -96,9 +96,7 @@ export function Settings() {
 
       {/* AI Tier */}
       <section className="space-y-2">
-        <h3 className="text-sm font-medium text-zinc-300">
-          AI Privacy Tier
-        </h3>
+        <h3 className="text-sm font-medium text-zinc-300">AI Privacy Tier</h3>
         <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
           {TIER_INFO.map((tier) => {
             const isActive = settings.aiTier === tier.id;
@@ -107,9 +105,7 @@ export function Settings() {
                 key={tier.id}
                 onClick={() => save({ aiTier: tier.id })}
                 className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                  isActive
-                    ? tier.activeColor
-                    : "text-zinc-500 hover:text-zinc-300"
+                  isActive ? tier.activeColor : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {tier.label}
@@ -127,11 +123,11 @@ export function Settings() {
         <section className="space-y-3">
           <h3 className="text-sm font-medium text-zinc-300">Local AI Engine</h3>
           <div className="flex gap-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1">
-            {([
+            {[
               { id: "rule-based" as LocalAIProvider, label: "Rules" },
               { id: "ollama" as LocalAIProvider, label: "Ollama" },
               { id: "chrome-ai" as LocalAIProvider, label: "Chrome AI" },
-            ]).map((opt) => {
+            ].map((opt) => {
               const isActive = settings.localAIProvider === opt.id;
               return (
                 <button
@@ -149,9 +145,12 @@ export function Settings() {
             })}
           </div>
           <p className="text-[11px] text-zinc-600">
-            {settings.localAIProvider === "rule-based" && "Fast domain-based grouping. No AI model needed."}
-            {settings.localAIProvider === "ollama" && "Connect to a local Ollama instance. Install from ollama.com."}
-            {settings.localAIProvider === "chrome-ai" && "Uses Chrome's built-in Gemini Nano. Requires Chrome 138+."}
+            {settings.localAIProvider === "rule-based" &&
+              "Fast domain-based grouping. No AI model needed."}
+            {settings.localAIProvider === "ollama" &&
+              "Connect to a local Ollama instance. Install from ollama.com."}
+            {settings.localAIProvider === "chrome-ai" &&
+              "Uses Chrome's built-in Gemini Nano. Requires Chrome 138+."}
           </p>
 
           {/* Ollama settings */}
@@ -233,16 +232,12 @@ export function Settings() {
       {/* OpenRouter Settings */}
       {showCloudSettings && settings.aiModelProvider === "openrouter" && (
         <section className="space-y-3">
-          <h3 className="text-sm font-medium text-zinc-300">
-            OpenRouter Configuration
-          </h3>
+          <h3 className="text-sm font-medium text-zinc-300">OpenRouter Configuration</h3>
 
           <div>
             <label className="mb-1 block text-xs text-zinc-500">
               API Key
-              <span className="ml-1 text-zinc-600">
-                (get one at openrouter.ai)
-              </span>
+              <span className="ml-1 text-zinc-600">(get one at openrouter.ai)</span>
             </label>
             <input
               type="password"
@@ -327,27 +322,21 @@ export function Settings() {
 
       {/* Stale threshold */}
       <section className="space-y-2">
-        <h3 className="text-sm font-medium text-zinc-300">
-          Stale Tab Threshold
-        </h3>
+        <h3 className="text-sm font-medium text-zinc-300">Stale Tab Threshold</h3>
         <div className="flex items-center gap-2">
           <input
             type="number"
             min={1}
             max={90}
             value={settings.staleDaysThreshold}
-            onChange={(e) =>
-              save({ staleDaysThreshold: parseInt(e.target.value) || 7 })
-            }
+            onChange={(e) => save({ staleDaysThreshold: parseInt(e.target.value, 10) || 7 })}
             className="w-20 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-brand-400 focus:outline-none"
           />
           <span className="text-sm text-zinc-500">days</span>
         </div>
       </section>
 
-      {saved && (
-        <div className="text-xs text-green-400">Settings saved</div>
-      )}
+      {saved && <div className="text-xs text-green-400">Settings saved</div>}
     </div>
   );
 }

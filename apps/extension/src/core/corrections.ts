@@ -1,5 +1,5 @@
-import type { TabInfo, TabGroupSuggestion, CorrectionSignal } from "@/shared/types";
 import { MAX_CORRECTIONS } from "@/shared/constants";
+import type { CorrectionSignal, TabGroupSuggestion, TabInfo } from "@/shared/types";
 
 /** Half-life for recency decay in days. */
 const DECAY_HALF_LIFE_DAYS = 14;
@@ -127,9 +127,10 @@ export function mergeCorrections(
         count: merged[matchIdx].count + 1,
         lastSeen: Math.max(merged[matchIdx].lastSeen, signal.lastSeen),
         // Upgrade to "correction" if either signal is an explicit correction
-        source: merged[matchIdx].source === "correction" || signal.source === "correction"
-          ? "correction"
-          : "acceptance",
+        source:
+          merged[matchIdx].source === "correction" || signal.source === "correction"
+            ? "correction"
+            : "acceptance",
       };
     } else {
       merged.push(signal);
@@ -165,19 +166,14 @@ export function rankCorrections(
   corrections: CorrectionSignal[],
   now = Date.now(),
 ): CorrectionSignal[] {
-  return [...corrections].sort(
-    (a, b) => decayWeight(b, now) - decayWeight(a, now),
-  );
+  return [...corrections].sort((a, b) => decayWeight(b, now) - decayWeight(a, now));
 }
 
 /**
  * Format top corrections as a prompt context block.
  * Returns empty string if no corrections.
  */
-export function correctionsBlock(
-  corrections: CorrectionSignal[],
-  maxItems = 10,
-): string {
+export function correctionsBlock(corrections: CorrectionSignal[], maxItems = 10): string {
   if (corrections.length === 0) return "";
 
   const ranked = rankCorrections(corrections);

@@ -4,6 +4,7 @@ import type {
   TabInfo,
   TabOrganizationResult,
   TabGroupSuggestion,
+  TabGroupSnapshot,
   TabSnapshot,
   LockedTabGroup,
   LockedBookmarkFolder,
@@ -353,6 +354,15 @@ async function handleApplyTabSuggestions(
   }));
   await setSessionData(STORAGE_KEYS.TAB_SNAPSHOT, snapshot);
 
+  // Capture group metadata (names + colors) for restore
+  const liveGroups = windowId !== undefined ? await queryTabGroups(windowId) : [];
+  const tabGroupSnapshots: TabGroupSnapshot[] = liveGroups.map((g) => ({
+    groupId: g.id,
+    title: g.title ?? "",
+    color: g.color as import("@/shared/types").TabGroupColor,
+  }));
+  await setSessionData("vxrtx_tab_group_snapshot", tabGroupSnapshots);
+
   // Persistent auto-snapshot for history
   await addSnapshot({
     id: crypto.randomUUID(),
@@ -363,6 +373,7 @@ async function handleApplyTabSuggestions(
     tabCount: snapshot.length,
     bookmarkCount: 0,
     tabs: snapshot,
+    tabGroups: tabGroupSnapshots,
     bookmarks: [],
   });
 
@@ -471,16 +482,34 @@ async function handleUndoTabChanges(): Promise<MessageResponse> {
     }
   }
 
+  // Load group metadata saved at apply time
+  const savedGroupMeta = await getSessionData<TabGroupSnapshot[]>("vxrtx_tab_group_snapshot");
+  const groupMeta = new Map<number, TabGroupSnapshot>();
+  if (savedGroupMeta) {
+    for (const g of savedGroupMeta) {
+      groupMeta.set(g.groupId, g);
+    }
+  }
+
   if (windowId !== undefined) {
-    for (const tabIds of groupMap.values()) {
+    for (const [oldGroupId, tabIds] of groupMap) {
       const validIds = tabIds.filter((id) =>
         currentTabs.some((t) => t.id === id),
       );
       if (validIds.length > 0) {
-        await chrome.tabs.group({
+        const newGroupId = await chrome.tabs.group({
           tabIds: validIds as [number, ...number[]],
           createProperties: { windowId },
         });
+        const meta = groupMeta.get(oldGroupId);
+        if (meta && (meta.title || meta.color)) {
+          try {
+            await chrome.tabGroups.update(newGroupId, {
+              title: meta.title,
+              color: meta.color as chrome.tabGroups.Color,
+            });
+          } catch { /* group may have been removed */ }
+        }
       }
     }
   }
@@ -978,6 +1007,7 @@ async function handleCreateSnapshot(
   payload: { label: string; type: SnapshotType },
 ): Promise<MessageResponse> {
   let tabs: TabSnapshot[] = [];
+  let tabGroups: TabGroupSnapshot[] = [];
   let bmSnapshots: BookmarkSnapshot[] = [];
 
   if (payload.type === "tabs" || payload.type === "both") {
@@ -987,6 +1017,15 @@ async function handleCreateSnapshot(
       groupId: t.groupId,
       windowId: t.windowId,
     }));
+    const windowId = allTabs[0]?.windowId;
+    if (windowId !== undefined) {
+      const liveGroups = await queryTabGroups(windowId);
+      tabGroups = liveGroups.map((g) => ({
+        groupId: g.id,
+        title: g.title ?? "",
+        color: g.color as import("@/shared/types").TabGroupColor,
+      }));
+    }
   }
 
   if (payload.type === "bookmarks" || payload.type === "both") {
@@ -1004,6 +1043,7 @@ async function handleCreateSnapshot(
     tabCount: tabs.length,
     bookmarkCount: bmSnapshots.length,
     tabs,
+    tabGroups: tabGroups.length > 0 ? tabGroups : undefined,
     bookmarks: bmSnapshots,
   });
 
@@ -1057,18 +1097,38 @@ async function handleRestoreSnapshot(
       }
     }
 
+    // Build lookup for group metadata (name + color)
+    const groupMeta = new Map<number, TabGroupSnapshot>();
+    if (snapshot.tabGroups) {
+      for (const g of snapshot.tabGroups) {
+        groupMeta.set(g.groupId, g);
+      }
+    }
+
     if (windowId !== undefined) {
-      for (const tabIds of groupMap.values()) {
+      for (const [oldGroupId, tabIds] of groupMap) {
         const validIds = tabIds.filter((id) =>
           currentTabs.some((t) => t.id === id),
         );
         tabsRestored += validIds.length;
         tabsSkipped += tabIds.length - validIds.length;
         if (validIds.length > 0) {
-          await chrome.tabs.group({
+          const newGroupId = await chrome.tabs.group({
             tabIds: validIds as [number, ...number[]],
             createProperties: { windowId },
           });
+          // Restore group name and color if we have metadata
+          const meta = groupMeta.get(oldGroupId);
+          if (meta && (meta.title || meta.color)) {
+            try {
+              await chrome.tabGroups.update(newGroupId, {
+                title: meta.title,
+                color: meta.color as chrome.tabGroups.Color,
+              });
+            } catch {
+              // Group may have been removed between creation and update
+            }
+          }
         }
       }
     }

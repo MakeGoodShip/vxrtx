@@ -80,6 +80,12 @@ export interface TabSnapshot {
   windowId: number;
 }
 
+export interface TabGroupSnapshot {
+  groupId: number;
+  title: string;
+  color: TabGroupColor;
+}
+
 export interface LockedTabGroup {
   chromeGroupId: number;
   name: string;
@@ -197,5 +203,7 @@ export interface Snapshot {
   tabCount: number;
   bookmarkCount: number;
   tabs: TabSnapshot[];
+  /** Group metadata for restoring names/colors. Optional for backward compat with old snapshots. */
+  tabGroups?: TabGroupSnapshot[];
   bookmarks: BookmarkSnapshot[];
 }

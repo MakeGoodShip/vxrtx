@@ -1,16 +1,95 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #edfcfe;
-  --color-brand-100: #d1f7fc;
-  --color-brand-200: #a8eef9;
-  --color-brand-300: #6de1f4;
-  --color-brand-400: #18ccf1;
-  --color-brand-500: #0aaecd;
-  --color-brand-600: #0b8bac;
-  --color-brand-700: #10708c;
-  --color-brand-800: #165b72;
-  --color-brand-900: #164c61;
-  --color-brand-950: #083242;
-  --color-coal: #111313;
+  --color-brand-50: #edfef5;
+  --color-brand-100: #d1fce6;
+  --color-brand-200: #a8f9d1;
+  --color-brand-300: #6df4b5;
+  --color-brand-400: #20fc8f;
+  --color-brand-500: #0acd72;
+  --color-brand-600: #0bac5e;
+  --color-brand-700: #108c4e;
+  --color-brand-800: #16723f;
+  --color-brand-900: #166135;
+  --color-brand-950: #08421f;
+  --color-brand-pink: #f433ab;
+  --color-brand-indigo: #8b7fd4;
+  --color-coal: #0a0b0b;
+  --color-surface: #111313;
+  --color-surface-raised: #181a1a;
+  --font-family-sans: "DM Sans", system-ui, sans-serif;
+  --font-family-display: "Syne", system-ui, sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+
+::selection {
+  background: #20fc8f;
+  color: #0a0b0b;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Subtle scan line effect */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.008) 2px,
+    rgba(255, 255, 255, 0.008) 4px
+  );
+}
+
+/* Animations */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-line {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease both;
+}
+
+.animate-slide-right {
+  animation: slide-right 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
+.delay-6 { animation-delay: 0.6s; }
+.delay-7 { animation-delay: 0.7s; }
+.delay-8 { animation-delay: 0.8s; }

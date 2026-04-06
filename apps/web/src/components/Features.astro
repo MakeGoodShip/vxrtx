@@ -1,0 +1,64 @@
+---
+const features = [
+  {
+    num: "01",
+    title: "Tabs",
+    detail: "Smart Grouping",
+    description: "AI analyzes open tabs and suggests logical groups. Adjust granularity from broad to fine-grained. Add custom guidance. Preview before applying. Detect stale tabs and duplicates.",
+  },
+  {
+    num: "02",
+    title: "Bookmarks",
+    detail: "Four Tools",
+    description: "Reorganize your entire bookmark tree. Find the right folder for any bookmark. Detect and remove duplicates. Clean up empty folders. Lock folders you want protected.",
+  },
+  {
+    num: "03",
+    title: "Snapshots",
+    detail: "Time Machine",
+    description: "Every action auto-creates a snapshot. Restore tabs, bookmarks, or both from any point in time. Export and import sessions as JSON. Undo any change instantly.",
+  },
+];
+---
+
+<section id="features" class="relative px-6 py-32 md:px-12 lg:px-20">
+  <div class="mx-auto max-w-7xl">
+    <div class="mb-20 flex items-end justify-between">
+      <div>
+        <p
+          class="mb-3 text-[10px] uppercase tracking-[0.25em] text-brand-400"
+          style="font-family: var(--font-family-mono);"
+        >Features</p>
+        <h2
+          class="text-[clamp(1.8rem,4vw,3rem)] font-700 leading-[1.1] tracking-[-0.02em] text-white"
+          style="font-family: var(--font-family-display);"
+        >
+          What it does
+        </h2>
+      </div>
+      <div class="hidden md:block text-right">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-zinc-700" style="font-family: var(--font-family-mono);">03 core modules</span>
+      </div>
+    </div>
+
+    <div class="space-y-0">
+      {features.map((f, i) => (
+        <div class={`group grid gap-6 border-t border-zinc-800/60 py-10 md:grid-cols-[80px_180px_1fr] md:items-baseline ${i === features.length - 1 ? 'border-b' : ''}`}>
+          <span
+            class="text-[11px] text-zinc-700"
+            style="font-family: var(--font-family-mono);"
+          >{f.num}</span>
+          <div>
+            <h3 class="text-xl font-700 text-white transition-colors group-hover:text-brand-400" style="font-family: var(--font-family-display);">
+              {f.title}
+            </h3>
+            <span class="mt-1 block text-[10px] uppercase tracking-[0.15em] text-zinc-600" style="font-family: var(--font-family-mono);">{f.detail}</span>
+          </div>
+          <p class="text-sm leading-relaxed text-zinc-500 md:max-w-lg">
+            {f.description}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

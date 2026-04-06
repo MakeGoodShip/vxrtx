@@ -1,0 +1,95 @@
+---
+---
+
+<section class="relative px-6 py-32 md:px-12 lg:px-20">
+  <!-- Background accent -->
+  <div class="pointer-events-none absolute inset-0 overflow-hidden">
+    <div class="absolute -left-48 top-1/2 h-[400px] w-[400px] -translate-y-1/2 rounded-full opacity-10 blur-[100px]" style="background: #20fc8f;"></div>
+  </div>
+
+  <div class="relative mx-auto max-w-7xl">
+    <div class="mb-20">
+      <p
+        class="mb-3 text-[10px] uppercase tracking-[0.25em] text-brand-400"
+        style="font-family: var(--font-family-mono);"
+      >Privacy</p>
+      <h2
+        class="text-[clamp(1.8rem,4vw,3rem)] font-700 leading-[1.1] tracking-[-0.02em] text-white"
+        style="font-family: var(--font-family-display);"
+      >
+        You control the data
+      </h2>
+      <p class="mt-4 max-w-lg text-zinc-500">
+        One toggle. Three tiers. Choose what leaves your machine — change it anytime.
+      </p>
+    </div>
+
+    <div class="grid gap-px bg-zinc-800/40 md:grid-cols-3 rounded-lg overflow-hidden">
+      <!-- Secure -->
+      <div class="relative bg-surface p-8 md:p-10 group">
+        <div class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-brand-400 to-brand-400/0"></div>
+        <div class="mb-6 flex items-center gap-3">
+          <span class="inline-block h-3 w-3 rounded-full bg-brand-400" style="box-shadow: 0 0 12px rgba(32,252,143,0.4);"></span>
+          <span
+            class="text-[11px] font-600 uppercase tracking-[0.2em] text-brand-400"
+            style="font-family: var(--font-family-mono);"
+          >Secure</span>
+        </div>
+        <p class="mb-3 text-lg font-600 text-white" style="font-family: var(--font-family-display);">
+          Nothing leaves your machine
+        </p>
+        <p class="text-sm leading-relaxed text-zinc-500">
+          Rule-based grouping, local Ollama, or Chrome's built-in Gemini Nano. Zero network calls.
+        </p>
+        <div class="mt-6 border-t border-zinc-800/60 pt-4">
+          <span class="text-[10px] uppercase tracking-[0.15em] text-zinc-700" style="font-family: var(--font-family-mono);">Data sent</span>
+          <div class="mt-1 text-2xl font-700 text-brand-400" style="font-family: var(--font-family-display);">None</div>
+        </div>
+      </div>
+
+      <!-- Relaxed -->
+      <div class="relative bg-surface p-8 md:p-10 group">
+        <div class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-brand-indigo to-brand-indigo/0"></div>
+        <div class="mb-6 flex items-center gap-3">
+          <span class="inline-block h-3 w-3 rounded-full bg-brand-indigo" style="box-shadow: 0 0 12px rgba(139,127,212,0.4);"></span>
+          <span
+            class="text-[11px] font-600 uppercase tracking-[0.2em] text-brand-indigo"
+            style="font-family: var(--font-family-mono);"
+          >Relaxed</span>
+        </div>
+        <p class="mb-3 text-lg font-600 text-white" style="font-family: var(--font-family-display);">
+          Cloud AI, minimal exposure
+        </p>
+        <p class="text-sm leading-relaxed text-zinc-500">
+          Titles only — never URLs. Enough context for smart grouping without exposing your browsing.
+        </p>
+        <div class="mt-6 border-t border-zinc-800/60 pt-4">
+          <span class="text-[10px] uppercase tracking-[0.15em] text-zinc-700" style="font-family: var(--font-family-mono);">Data sent</span>
+          <div class="mt-1 text-2xl font-700 text-brand-indigo" style="font-family: var(--font-family-display);">Titles</div>
+        </div>
+      </div>
+
+      <!-- YOLO -->
+      <div class="relative bg-surface p-8 md:p-10 group">
+        <div class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-brand-pink to-brand-pink/0"></div>
+        <div class="mb-6 flex items-center gap-3">
+          <span class="inline-block h-3 w-3 rounded-full bg-brand-pink" style="box-shadow: 0 0 12px rgba(244,51,171,0.4);"></span>
+          <span
+            class="text-[11px] font-600 uppercase tracking-[0.2em] text-brand-pink"
+            style="font-family: var(--font-family-mono);"
+          >YOLO</span>
+        </div>
+        <p class="mb-3 text-lg font-600 text-white" style="font-family: var(--font-family-display);">
+          Full context, maximum quality
+        </p>
+        <p class="text-sm leading-relaxed text-zinc-500">
+          Titles, URLs, timestamps. The AI sees everything for the best results. Your key, your choice.
+        </p>
+        <div class="mt-6 border-t border-zinc-800/60 pt-4">
+          <span class="text-[10px] uppercase tracking-[0.15em] text-zinc-700" style="font-family: var(--font-family-mono);">Data sent</span>
+          <div class="mt-1 text-2xl font-700 text-brand-pink" style="font-family: var(--font-family-display);">Full</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

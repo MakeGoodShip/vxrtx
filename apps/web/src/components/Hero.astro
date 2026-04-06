@@ -1,0 +1,118 @@
+---
+---
+
+<section class="relative min-h-[100vh] overflow-hidden px-6 md:px-12 lg:px-20">
+  <!-- Decorative grid lines -->
+  <div class="pointer-events-none absolute inset-0 opacity-[0.04]">
+    <div class="absolute top-0 left-[20%] h-full w-px bg-white"></div>
+    <div class="absolute top-0 left-[40%] h-full w-px bg-white"></div>
+    <div class="absolute top-0 left-[60%] h-full w-px bg-white"></div>
+    <div class="absolute top-0 left-[80%] h-full w-px bg-white"></div>
+    <div class="absolute top-[33%] left-0 h-px w-full bg-white"></div>
+    <div class="absolute top-[66%] left-0 h-px w-full bg-white"></div>
+  </div>
+
+  <!-- Green glow — asymmetric, top-right -->
+  <div
+    class="pointer-events-none absolute -top-32 -right-32 h-[500px] w-[500px] rounded-full opacity-20 blur-[120px]"
+    style="background: #20fc8f;"
+  ></div>
+
+  <div class="relative mx-auto flex max-w-7xl flex-col justify-center pt-24 md:pt-32 lg:min-h-[100vh] lg:pt-0">
+    <!-- Top bar -->
+    <div class="animate-fade-in mb-16 flex items-center justify-between">
+      <svg fill="none" viewBox="0 0 1072 500" class="h-6 w-auto opacity-60">
+        <path clip-rule="evenodd" d="m498.274 18.4204.507.1607 168.762-.032 105.642 181.7759s61.647-129.8647 113.814-181.5637c52.167-51.6991 184.431 19.8461 184.431 19.8461s-10.01 6.6281-24.64 31.7405c-11.75 20.1649-13.86 42.4441-13.86 42.4441s-65.359-161.2145-141.391-85.8651c-76.032 75.3491-108.862 189.7291-108.862 189.7291l156.489 269.249h-118.706c-5.596-9.624-15.946-29.507-29.623-55.782l-.098-.187-.223-.429c-17.947-34.476-41.575-79.866-67.771-127.665-.672-1.226-1.349-2.453-2.026-3.682l-.137-.248-1.325-2.404-2.235-4.067s-56.159 121.199-120.973 171.945c-83.112 65.073-217.216 23.577-217.216 23.577l14.83-54.967s75.161 89.584 164.585 49.429c89.423-40.155 155.275-196.297 155.275-196.297-73.819-133.144-117.474-284.990224-206.093-253.2903-45.602 101.1093-126.885 360.9643-156.67 454.7933l-.54-.171-.136.501h-116.565c-56.78-140.252-124.391-291.081-204.3806-420.1647-9.5719-15.4464-31.49272-34.4098-28.931892-40.0816 4.846182-10.7183 49.398492-8.1656 145.338492-8.1656 0 0 104.773 251.6579 133.844 344.4889 29.071 92.83 83.527 49.744 97.43 15.834l32.885-88.156s20.593-58.175 68.431-208.8607l12.517-39.4281z" fill="currentColor" fill-rule="evenodd"/>
+      </svg>
+      <span
+        class="text-[10px] uppercase tracking-[0.2em] text-zinc-600"
+        style="font-family: var(--font-family-mono);"
+      >Chrome Extension</span>
+    </div>
+
+    <!-- Main content — asymmetric -->
+    <div class="grid gap-16 lg:grid-cols-[1fr_380px] lg:items-end">
+      <div>
+        <p
+          class="animate-slide-right delay-1 mb-6 text-[11px] uppercase tracking-[0.25em] text-brand-400"
+          style="font-family: var(--font-family-mono);"
+        >
+          AI-powered organization<span class="inline-block ml-1 w-1.5 h-3.5 bg-brand-400" style="animation: blink 1s step-end infinite;"></span>
+        </p>
+
+        <h1
+          class="animate-fade-up delay-2 text-[clamp(2.8rem,7vw,5.5rem)] font-800 leading-[0.92] tracking-[-0.03em] text-white"
+          style="font-family: var(--font-family-display);"
+        >
+          Tame your<br/>
+          browser<br/>
+          <span class="text-brand-400">chaos</span>
+        </h1>
+
+        <p class="animate-fade-up delay-4 mt-8 max-w-md text-lg leading-relaxed text-zinc-500">
+          AI organizes your tabs and bookmarks — on your terms. Fully local,
+          privacy-conscious, or full-power cloud. You choose.
+        </p>
+
+        <div class="animate-fade-up delay-5 mt-10 flex flex-wrap gap-4">
+          <a
+            href="#"
+            class="group relative inline-flex items-center gap-2 rounded-md bg-brand-400 px-6 py-3 text-sm font-semibold text-coal transition-all hover:bg-brand-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Add to Chrome
+          </a>
+          <a
+            href="https://github.com/MakeGoodShip/vxrtx"
+            class="inline-flex items-center gap-2 rounded-md border border-zinc-800 px-6 py-3 text-sm font-medium text-zinc-400 transition-all hover:border-zinc-600 hover:text-zinc-200"
+          >
+            GitHub
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right column — stats -->
+      <div class="animate-fade-in delay-6 border-l border-zinc-800/60 pl-8 pb-4 hidden lg:block">
+        <div class="space-y-8">
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-zinc-600 mb-1" style="font-family: var(--font-family-mono);">Privacy Tiers</div>
+            <div class="flex gap-3 items-center">
+              <span class="h-2 w-2 rounded-full bg-brand-400"></span>
+              <span class="text-xs text-zinc-400">Secure</span>
+              <span class="h-2 w-2 rounded-full bg-brand-indigo"></span>
+              <span class="text-xs text-zinc-400">Relaxed</span>
+              <span class="h-2 w-2 rounded-full bg-brand-pink"></span>
+              <span class="text-xs text-zinc-400">YOLO</span>
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-zinc-600 mb-1" style="font-family: var(--font-family-mono);">AI Providers</div>
+            <div class="text-2xl font-600 text-white" style="font-family: var(--font-family-display);">5</div>
+            <div class="text-xs text-zinc-500">Cloud, local, on-device, rules</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-zinc-600 mb-1" style="font-family: var(--font-family-mono);">Data Sent (Secure)</div>
+            <div class="text-2xl font-600 text-brand-400" style="font-family: var(--font-family-display);">0</div>
+            <div class="text-xs text-zinc-500">bytes leave your machine</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-zinc-600 mb-1" style="font-family: var(--font-family-mono);">Status</div>
+            <div class="flex items-center gap-2">
+              <span class="h-1.5 w-1.5 rounded-full bg-brand-400" style="animation: blink 2s ease infinite;"></span>
+              <span class="text-xs text-zinc-400">Open source &middot; Free &middot; No account</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom scroll indicator -->
+    <div class="animate-fade-in delay-8 mt-20 mb-8 lg:mt-0 lg:absolute lg:bottom-8 lg:left-0">
+      <a href="#features" class="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-zinc-600 transition-colors hover:text-zinc-400" style="font-family: var(--font-family-mono);">
+        <span class="block h-8 w-px bg-zinc-700" style="animation: pulse-line 2s ease infinite;"></span>
+        Scroll to explore
+      </a>
+    </div>
+  </div>
+</section>
